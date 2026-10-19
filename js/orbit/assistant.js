@@ -67,6 +67,17 @@
     return R('Выполнить? ' + text, { buttons: [btn('Да', 'ag:yes:' + id), btn('Нет', 'ag:no:' + id)] });
   }
 
+  /* ───── облако: полная переписка в Supabase (до 100 МБ); локально храним окно 300 сообщений ───── */
+  const memPush = m => { try { if (O.cloud && O.cloud.logged()) O.cloud.pushMsg(m); } catch (e) {} };
+  function trimLocalMem() {
+    try {
+      if (!mem.msgs) mem.msgs = [];
+      mem.msgs = A.msgs.filter(x => x.role === 'user' || x.role === 'bot').map(x => ({ role: x.role, text: String(x.text || '').slice(0, 2000), at: x.at })).slice(-LOCAL_MEM_CAP);
+      saveMem();
+    } catch (e) {}
+  }
+  const LOCAL_MEM_CAP = 300;
+
   /* ───── интенты ───── */
   const INT = [];
   A._INT = INT;   // для тестов
@@ -424,6 +435,73 @@
     if (/^как/.test(n)) return R('Всё хорошо, работаю. Чем помочь?', { buttons: sug() });
     return R('Хорошо.', { buttons: sug() });
   }, 'smalltalk');
+
+  /* ───── облако и сообщество: стена, друзья, личные сообщения, расписания (cron + push) ───── */
+  on(/^(облако|cloud|синхронизация|синхронизируй( переписку)?|загрузи переписку из облака|выгрузи в облако)$/i, async () => {
+    const Cl = O.cloud; if (!Cl || !Cl.enabled()) { C().switchTab('cloud'); return R('Облако ещё не подключено. Открыл раздел «Облако»: это дополнительная функция по желанию — вставьте адрес проекта Supabase.', { buttons: [btn('Раздел Облако', 'tab:cloud')] }); }
+    if (!Cl.logged()) { C().switchTab('cloud'); return R('Нужно войти в аккаунт Контур Cloud (e-mail + пароль, которые вы сами придумали) — открыл раздел «Облако».', { buttons: [btn('Раздел Облако', 'tab:cloud')] }); }
+    try { await Cl.syncNow(); return R('Синхронизировал ✓ Вся переписка (храню до 100 МБ) и данные в облаке — можно заходить с любого устройства.' + (Cl.online ? '' : ' Часть ушла в очередь: сеть сбоит, повторим автоматически.')); }
+    catch (e) { return R('Сбой облака: ' + ((e && e.message) || e) + '. Возможны проблемы: иногда Supabase не работает без ВПН. Локально всё сохранено, ничего не потерялось.', { buttons: [btn('Раздел Облако', 'tab:cloud')] }); }
+  }, 'cloud-sync');
+  on(/(опубликуй|напиши на стену|пост на стену|добавь на стену)\s+([\s\S]{3,})/i, async (t, n) => {
+    const Cl = O.cloud;
+    const body = (n.match(/стен\w*[:\s—-]*([\s\S]+)$/i) || [, n])[1].trim();
+    if (!Cl || !Cl.logged()) return R('Стена доступна только с подключённым облаком. Скажите «облако», чтобы настроить.', { buttons: [btn('Раздел Облако', 'tab:cloud')] });
+    if (((S().settings || {}).cloudAgentWall) === false) return R('Вы запретили агенту писать на стену (раздел «Облако» → настройки).');
+    await Cl.postWall(body, 'bot');
+    return R('Опубликовал на общей стене от имени агента: «' + body.slice(0, 80) + '». Стену контролирую я: читаю её для обучения и помечаю свои посты 🤖.');
+  }, 'wall-post');
+  on(/(что нового на стене|покажи стену|открой стену|лент[ае]|читай стену|обучись со стены|выучи со стены)/i, async () => {
+    const Cl = O.cloud; if (!Cl || !Cl.logged()) return R('Стена живёт в облаке — сначала подключите его (скажите «облако»).', { buttons: [btn('Раздел Облако', 'tab:cloud')] });
+    try { await Cl.loadWall(); } catch (e) { return R('Не достучался до стены: ' + ((e && e.message) || e) + '. Нужен интернет, иногда — ВПН.'); }
+    const posts = Cl.wall.slice(-6).reverse();
+    const learned = await Cl.learnFromWall().catch(() => 0);
+    return R((posts.length ? 'На стене свежее:\n' + posts.map(p => '• ' + String(p.body).slice(0, 90)).join('\n') : 'Стена пуста.') + (learned ? '\nЗаписал ' + learned + ' записей стены в свою память — учусь на вашем опыте.' : ''), { buttons: [btn('Открыть стену', 'tab:cloud'), btn('Что ты помнишь', 'cmd:что ты помнишь')] });
+  }, 'wall-read');
+  on(/(добавь в друзья|пригласи в друзья|найди друга)\s+(.+)/i, async (t, n) => {
+    const Cl = O.cloud; if (!Cl || !Cl.logged()) return R('Друзья — функция облака. Подключите Supabase в разделе «Облако».', { buttons: [btn('Раздел Облако', 'tab:cloud')] });
+    const q = (n.match(/(?:друз[ьяе]*|найди друга)\s*(?:[:\s]*)?(.*)$/i) || [, n])[1].trim() || n;
+    try {
+      const found = await Cl.searchUsers(q);
+      if (!found.length) return R('Не нашёл такого пользователя в облаке. Он должен зарегистрироваться и подтвердить почту.');
+      if (found.length > 1) return R('Кого именно добавить?', { buttons: found.slice(0, 6).map(p => btn(p.name || p.id.slice(0, 8), 'ag:cfriend:' + p.id)) });
+      await Cl.addFriend(found[0].id);
+      return R('Отправил приглашение: ' + (found[0].name || found[0].id.slice(0, 8)) + '. Как примет — сможете переписываться, и я передам другу сообщение по вашей просьбе.');
+    } catch (e) { return R('Сбой поиска друзей: ' + ((e && e.message) || e) + ' (нет связи / нужен ВПН?)'); }
+  }, 'cfriend');
+  on(/(отправь|напиши|передай)( ему| ей)?( личное)? сообщени[ею]\s+(\S+)\s*[:,]?\s+(.+)/i, async (t, n) => {
+    const Cl = O.cloud; if (!Cl || !Cl.logged()) return R('Личные сообщения — через облако. Подключите его в разделе «Облако».', { buttons: [btn('Раздел Облако', 'tab:cloud')] });
+    const m = n.match(/сообщени[ею]\s+(\S+)\s*[:,]?\s+([\s\S]+)$/i) || [];
+    const who = E.N(m[1] || ''), body = (m[2] || '').trim();
+    if (!body) return R('Что передать? Пример: «отправь сообщение Анне привет, встретимся в 7».');
+    const fr = Cl.friends.find(f => E.N(f.name || '').startsWith(who) || (f.id || '').startsWith(m[1]) || who && E.N(f.name || '') === who);
+    if (!fr) return R('Такого друга пока нет в списке. Сначала: «добавь в друзья ' + (m[1] || '') + '».', { buttons: [btn('Друзья', 'tab:cloud')] });
+    await Cl.sendDm(fr.id, body);
+    return R('Передал ' + (fr.name || 'другу') + ': «' + body.slice(0, 80) + '».' + (Cl.online ? '' : ' Пока связи нет — стоит в очереди, отправлю сам.'));
+  }, 'cdm');
+  on(/(поставь|сделай|добавь|включи|запланируй)\s+(задание|сценарий|напоминание|расписание|cron)[\s\S]*/i, async (t, n) => {
+    const tm = (n.match(/(?:каждый день |каждые день )?в\s+(\d{1,2}[:.]\d{2})/) || [])[1];
+    if (!tm) return R('Укажите время. Пример: «поставь задание каждый день в 8:00 — что взять завтра».', { buttons: [btn('Cron и push', 'tab:cloud')] });
+    const cmd = (n.match(/[—:-]\s*([\s\S]+)$/) || [])[1] || (n.split(/\d{1,2}[:.]\d{2}/)[1] || '').replace(/^[\s—:-]+/, '') || 'что дальше';
+    const wd = (n.match(/по (пн|вт|ср|чт|пт|сб|вс|понедельник|вторник|сред[ау]|четверг|пятниц\w*|суббот\w*|воскресень\w*)/i) || [])[1];
+    const dayMap = { пн: 0, пон: 0, понедельник: 0, вт: 1, втор: 1, вторник: 1, ср: 2, сред: 2, среду: 2, среда: 2, чт: 3, четвер: 3, четверг: 3, пт: 4, пятн: 4, пятницу: 4, пятница: 4, сб: 5, субб: 5, субботу: 5, суббота: 5, вс: 6, воскр: 6, воскресень: 6, воскресенье: 6 };
+    const kind = wd ? 'weekly' : 'daily';
+    const di = wd != null ? dayMap[E.N(wd)] : null;
+    const job = O.cron && O.cron.add({ name: cmd.slice(0, 40), kind, time: tm.replace('.', ':'), days: di != null ? [di] : [0, 1, 2, 3, 4], cmd, pushTitle: 'Контур', pushBody: cmd, cloud: !!(O.cloud && O.cloud.logged()) });
+    if (job && O.cloud && O.cloud.logged()) {
+      try { await O.cloud._api('jobAdd', cl => cl.from('script_jobs').insert({ uid: O.cloud.user.id, script_id: job.id, name: job.name, cron: job.cron || '', at: null, days: job.days || [], time_of_day: job.time || '', push_title: 'Контур', push_body: cmd, enabled: true })); } catch (e) {}
+    }
+    return R('Готово: «' + cmd + '» — ' + (job ? job.cronText : '') + '. Если приложение закрыто, сервер разбудит вас push-уведомлением (когда облако онлайн).', { buttons: [btn('Мои расписания', 'tab:cloud'), btn('Отменить', 'ag:undo')] });
+  }, 'cron-add');
+  on(/^(мои расписания|что по расписанию|какие задания|список заданий|cron задания)$/, () => {
+    const jobs = (O.cron && O.cron.list()) || [];
+    if (!jobs.length) return R('Расписаний нет. Пример: «поставь задание каждый день в 8:00 — что взять завтра».', { buttons: [btn('Раздел Облако → Cron', 'tab:cloud')] });
+    return R('Ваши задания:\n' + jobs.map(j => '• ' + j.name + ' — ' + j.cronText + (j.enabled ? '' : ' (выкл)') + (j.pushTitle ? ' 🔔' : '')).join('\n'), { buttons: [btn('Управлять', 'tab:cloud')] });
+  }, 'cron-list');
+  on(/^(статус облака|состояние синхронизации|cloud status)$/, () => {
+    const Cl = O.cloud; if (!Cl) return R('Модуль облака не загружен.');
+    return R(Cl.statusLine() + '. Последняя синхронизация: ' + (Cl.lastSyncAt ? new Date(Cl.lastSyncAt).toLocaleString('ru-RU') : 'ещё не выполнялась') + '. ⚠ Возможны сбои без ВПН — локальные данные всегда в безопасности.');
+  }, 'cloud-status');
   on(/^(помощь|помоги мне|что (ты )?(умеешь|можешь)|команды)$/, () => {
     const skills = (O.actions && O.actions.SKILLS) || [];
     const byCat = {};
@@ -737,6 +815,12 @@
     for (const it of INT) { const m = n.match(it.re) || t.match(it.re); if (!m) continue; let r = null; try { r = it.fn(t, n, now, m); } catch (e) { console.error('agent', it.name, e); } if (r) { r.intent = it.name; return r; } }
     return null;
   }
+  /* асинхронные интенты (облако): ждём Promise, если handler вернул его */
+  async function understandAsync(text) {
+    const r = understand(text);
+    if (r && typeof r.then === 'function') { try { return await r; } catch (e) { console.error('agent async', e); return null; } }
+    return r;
+  }
 
   /* ───── карточки расписания / автобусов (из 3.23) ───── */
   function cardSchedule(items, header) {
@@ -916,7 +1000,11 @@
     try { const pre = O.inline && O.inline.handle(text); if (pre && pre.length) return pre; } catch (e) { console.error('inline', e); }
     text = toLegacy(text);
     const c = C(), r = understand(text);
-    if (r) { if (c.legacyPending) c.legacyCancel(); legacy = false; return [r]; }
+    if (r) { if (r.then) return r.then(rr => { if (rr) { if (c.legacyPending) c.legacyCancel(); legacy = false; rr.intent = rr.intent || 'cloud'; return [rr]; } return processSync(text); }); return [r]; }
+    return processSync(text);
+  };
+  function processSync(text) {
+    const c = C();
     // старый агент — только для команд про уроки/кружки/заметки или когда он ждёт ответ
     const n = N(text), LEG = /(добав|удал|убер|перенес|перемест|замен|измен|поменя|сдвин|созда|запиш|переимен|урок|кружок|заметк|окно|нагрузк|сколько|каникул|свободн[а-яёa-z0-9_]* врем|отмена|отмени)/;
     const words = n.split(/\s+/).slice(0, 2), subjHit = words.some(w => w.length > 2 && C().SUBJECTS.includes(C().resolveSubject(w))) && (dayIn(n, new Date()) || timeIn(n));
@@ -944,6 +1032,7 @@
     if (A.msgs.length > 300) A.msgs = A.msgs.slice(-300);
     if (O.work && O.work.pushMsg) O.work.pushMsg(mem, { role: entry.role, text: entry.text, at: entry.at });
     else { mem.msgs = A.msgs.slice(-300); saveMem(); }
+    if ((entry.role === 'user' || entry.role === 'bot') && entry.text) memPush({ role: entry.role, text: entry.text, at: entry.at });
   }
   A.send = async function (text) {
     text = String(text || '').trim(); if (!text || busy) return; busy = true;
@@ -953,7 +1042,7 @@
     push({ role: 'user', text }); renderLiveChips([]); A.render(true);
     if (O.motion() !== 'off') await new Promise(r => setTimeout(r, 160));
     let replies;
-    try { replies = A.process(text); } catch (e) { console.error(e); replies = [R('Что-то пошло не так. Попробуйте ещё раз.')]; }
+    try { replies = await A.process(text); } catch (e) { console.error(e); replies = [R('Что-то пошло не так. Попробуйте ещё раз.')]; }
     // LLM fallback for unknown
     if (replies.length === 1 && replies[0]._needLlm) {
       const s = S().settings || {};
@@ -985,6 +1074,7 @@
     else if (a === 'yes') { const p = pending[x]; if (p) { p.doFn(); C().save(); C().render(); undoStack.push(p.undoFn); delete pending[x]; push(R('Готово.', { buttons: [btn('Отменить', 'ag:undo')] })); } }
     else if (a === 'noop') { /* ignore */ }
     else if (a === 'panel') { A.panel = x || 'chat'; A.render(false); return; }
+    else if (a === 'cfriend') { const Cl = O.cloud; if (Cl && Cl.logged()) { Cl.addFriend(y).then(() => { push(R('Приглашение отправлено ✓')); Cl.loadFriends().catch(() => {}); }).catch(e => push(R('Сбой: ' + ((e && e.message) || e)))); } }
     else if (a === 'pack') {
       const day = +x, item = y;
       if (O.actions && O.actions.togglePack) {
@@ -1191,6 +1281,19 @@
       return;
     }
     if (A.panel === 'scripts') { if (O.scripts) O.scripts.panel(body); else body.innerHTML = '<p style="padding:16px">Модуль сценариев не загружен.</p>'; return; }
+    if (A.panel === 'cloud') {
+      const Cl = O.cloud;
+      body.innerHTML = `<div class="o-panel o-scripts" style="display:block;flex-direction:column;gap:8px;padding:12px">
+        <p class="muted" style="margin:0">${Cl ? esc(Cl.statusLine()) : 'Модуль облака не загружен.'}</p>
+        ${Cl && Cl.logged() ? `<div class="o-segs" style="margin-bottom:4px"><button class="o-chip" data-ag="cmd:синхронизация">Синхронизировать</button><button class="o-chip" data-ag="cmd:мои расписания">Cron-задания</button><button class="o-chip" data-ag="cmd:что нового на стене">Стена</button></div>` : ''}
+        ${(mem.msgs || []).length ? (() => {
+          const days = {};
+          (mem.msgs || []).forEach(m => { const d = new Date(m.at).toLocaleDateString('ru-RU'); (days[d] = days[d] || []).push(m); });
+          return Object.entries(days).slice(-7).map(([d, arr]) => `<div class="sc-card"><b>${d}</b><small>${arr.length} сообщений · всего в памяти ${mem.msgs.length} из 300 локально${Cl && Cl.logged() ? ' · полная история в облаке (до 100 МБ)' : ''}</small>
+            <div class="sc-row">${arr.slice(-3).reverse().map(m => `${m.role === 'user' ? '🟦' : '🟪'} ${esc(String(m.text).slice(0, 60))}`).join('<br>')}</div></div>`;
+        })() : '<p class="muted" style="padding:8px">История пуста.</p>'}${Cl && Cl.logged() ? '' : '<p class="o-note" style="margin-top:8px">' + ic('info', 13) + ' Локально агент помнит последние 300 сообщений. Подключите Supabase (по желанию), чтобы хранить всю переписку до 100 МБ и заходить с любого устройства. Возможны сбои без ВПН — данные при этом остаются локально.</p><button class="o-btn pri" data-ag="tab:cloud">Подключить облако</button>'}</div>`;
+      return;
+    }
     if (A.panel === 'skills') {
       const cats = { day: 'День', tasks: 'Задачи', schedule: 'Расписание', people: 'Люди', tools: 'Калькулятор и схемы', nav: 'Навигация', sos: 'SOS' };
       const skills = (O.actions && O.actions.SKILLS) || [];
@@ -1229,6 +1332,7 @@
         <button type="button" class="o-agent-tab" data-apanel="edits" role="tab">${ic('file',18)}<span>Правки</span></button>
         <button type="button" class="o-agent-tab" data-apanel="skills" role="tab">${ic('check',18)}<span>Навыки</span></button>
         <button type="button" class="o-agent-tab" data-apanel="scripts" role="tab">${ic('sparkle',18)}<span>Сценарии</span></button>
+        <button type="button" class="o-agent-tab" data-apanel="cloud" role="tab">${ic('info',18)}<span>Облако</span></button>
       </div>
       <div class="o-agent-body" id="ag-body"></div>
     </div>`;
