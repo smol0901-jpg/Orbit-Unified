@@ -77,7 +77,7 @@ window.CifraVoice={parse};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(typeof document==='undefined')return;
 const top=document.querySelector('.top');
-if(!top)return;
+if(!top||!document.getElementById('hap'))return;   /* UI только в CIFRA; на главной странице грузится один разбор фраз */
 const cfgv=()=>{try{return JSON.parse(localStorage.getItem('cfg'))||{}}catch(e){return{}}};
 const fb=k=>window.dispatchEvent(new CustomEvent('cifra-vfb',{detail:k}));   /* start | ok | err — вибро/звук настраиваются в app.js */
 const btn=document.createElement('button');btn.id='mic';btn.className='ib';btn.title='Голосовой ввод';btn.setAttribute('aria-label','Голосовой ввод');
