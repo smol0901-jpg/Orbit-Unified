@@ -321,12 +321,138 @@
     return R('Кому звонить по кнопке «Позвонить»?', { buttons: list.slice(0, 8).map(p => btn(firstName(p) + (p.relation ? ' (' + p.relation + ')' : ''), 'ag:fav:' + p.id)) });
   }, 'favcall');
 
+  /* ───── ФОКУС ДИАЛОГА: Кон помнит незаконченную команду и принимает уточнение следующими сообщениями ─────
+     «позвонить» → «Кому?» → «Василию» → карточка звонка;  «запиши в заметке» → текст → «ещё?» → напоминание → подтверждение.
+     Фокус проверяется первым в A.process (работает и для голоса), живёт 10 минут, «отмена» выходит. Подробнее — docs/AGENT-DIALOG.md */
+  let focus = null;
+  const FOCUS_TTL = 10 * 60000;
+  const focusSet = (kind, data, fn) => { focus = { kind, data: data || {}, fn, exp: Date.now() + FOCUS_TTL }; };
+  const focusClear = () => { focus = null; };
+  const F_CANCEL = /^(отмена|отмени|отменить|стоп|стой|забудь|выйти|выход)$/;
+  const F_DONE = /^(все|всё|хватит|достаточно|готово|больше ничего|больше нет|это все|это всё|закончил|закончила|дальше)$/;
+  const F_NO = /^(нет|не надо|не нужно|не стоит|без напоминания|не напоминай|не нужно напоминать)$/;
+  const F_YES = /^(да|ага|конечно|нужно|надо|давай|ок|окей|хорошо|подтверждаю|подтвердить|верно|все верно|сохрани|сохранить|согласен|согласна|напомни|напомнить)$/;
+  const F_MORE = /^(еще|ещё|добавить еще|добавить ещё|дописать|добавь еще|добавь ещё)$/;
+  /* «в 9», «в 9 вечера» без минут и слова «часов» (timeIn такое не понимает и молча ставил 8:00) */
+  function timeBare(n) {
+    const m = n.match(/(?:^|\s)(?:в|к)\s*(\d{1,2})(?=\s|$)(?!\s*(?:мин|раз|шт|человек|дн|день|недел|месяц|год|лет))(?:\s*(утра|вечера|дня|ночи))?/);
+    if (!m) return null; let h = +m[1]; if (h > 23) return null;
+    if ((m[2] === 'вечера' || m[2] === 'дня') && h < 12) h += 12; else if (m[2] === 'ночи' && h === 12) h = 0;
+    return { at: h * 60 };
+  }
+  const tIn = n => timeIn(n) || timeBare(n);
+  const cancelBtn = () => btn('Отмена', 'cmd:отмена');
+  const fmtAt = at => at.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+  const stripWhen = s => s.replace(/через\s+(?:полчаса|час|\d+\s*\S+)/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}[:.]\d{2}/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}(?=\s|$)(?:\s*(?:утра|вечера|дня|ночи))?/i, ' ').replace(/(?:^|[^а-яёa-z0-9_])(послезавтра|завтра|сегодня)(?![а-яёa-z0-9_])/i, ' ').replace(/\s+/g, ' ').trim();
+  function whenToDate(str, now) {
+    const nn = N(str), ti = tIn(nn), day = dayIn(nn, now); if (!ti && !day) return null;
+    let at = new Date(now);
+    if (day) at = new Date(day.d);
+    if (ti && ti.off != null) at = new Date(now.getTime() + ti.off * 60000);
+    else if (ti && ti.at != null) { at.setHours(Math.floor(ti.at / 60), ti.at % 60, 0, 0); if (!day && at <= now) at = E.addDays(at, 1); }
+    else at.setHours(8, 0, 0, 0);
+    return at;
+  }
+  /* похоже ли сообщение на самостоятельную команду (тогда уточнение «не по теме» и фокус сбрасывается) */
+  function looksLikeCommand(text) {
+    sortInt(); const t = canon(String(text).trim()), n = N(t);
+    return INT.some(it => it.name !== 'script' && it.name !== 'alias' && (n.match(it.re) || t.match(it.re)));
+  }
+  function focusStep(text) {
+    if (!focus) return null;
+    if (Date.now() > focus.exp) { focus = null; return null; }
+    const f = focus, n = N(text).trim().replace(/[.!?…]+$/, '').trim();
+    if (F_CANCEL.test(n)) { focus = null; return [R('Ок, отменил.')]; }
+    let r = null;
+    try { r = f.fn(String(text).trim(), n, f.data); } catch (e) { console.error('focus', f.kind, e); focus = null; return null; }
+    if (!r) { if (focus === f) focus = null; return null; }   // не по теме — обычная обработка
+    if (r.intent === undefined) r.intent = 'focus:' + f.kind;
+    return [r];
+  }
+
+  /* — «Кому позвонить / написать?» — */
+  function whoFocus(verb, tries, text) {
+    focusSet('who', { verb, tries }, (t, n) => {
+      if (F_NO.test(n)) { focusClear(); return R(verb === 'sms' ? 'Ок, не пишу.' : 'Ок, не звоню.'); }
+      if (findPeople(t).length) { focusClear(); return contact(t, verb, text); }
+      if (looksLikeCommand(t)) return null;
+      focusClear(); return contact(t, verb, text, tries);   // не найден: контакт сам спросит ещё раз (до 2 попыток)
+    });
+  }
+
+  /* — «О чём / когда напомнить?» — */
+  function remindFocus(what, when) {
+    focusSet('remind', { what, when, tries: 0 }, (t, n, d) => {
+      const has = !!(tIn(n) || dayIn(n, new Date()));
+      if (F_NO.test(n)) { focusClear(); return R('Ок, не напоминаю.'); }
+      const done = txt => { focusClear(); return understand(txt) || R('Не получилось создать напоминание.'); };
+      if (!d.what) {
+        if (has && stripWhen(t).length > 1) return done('напомни ' + t);          // «завтра в 9:00 позвонить маме» — сразу всё
+        if (has) { d.when = t; return R('О чём напомнить?', { buttons: [cancelBtn()] }); }
+        if (d.when) return done('напомни ' + d.when + ' ' + t);
+        d.what = t; return R('Когда напомнить «' + t + '»? Например: «завтра в 9:00» или «через час».', { buttons: [cancelBtn()] });
+      }
+      if (has) return done('напомни ' + t + ' ' + d.what);
+      if (looksLikeCommand(t)) return null;
+      if (++d.tries > 2) { focusClear(); return null; }
+      return R('Не понял время. Скажите, например, «завтра в 9:00» или «через 30 минут».', { buttons: [cancelBtn()] });
+    });
+  }
+
+  /* — «Запиши в заметке»: текст → ещё → напоминание → подтверждение — */
+  function noteWizard() {
+    focusSet('note', { step: 'text', lines: [], at: null }, noteStep);
+    return R('Что записать в заметку?', { buttons: [cancelBtn()] });
+  }
+  function noteSummary(d) {
+    return R('Проверьте запись:\n' + d.lines.map(l => '• ' + l).join('\n') + '\n' + (d.at ? '🔔 Напомню: ' + fmtAt(d.at) : '🔕 Без напоминания') + '\nПодтверждаете?', { buttons: [btn('Подтверждаю', 'cmd:подтверждаю'), btn('Добавить ещё', 'cmd:добавить ещё'), cancelBtn()] });
+  }
+  function noteStep(t, n, d) {
+    const ask = x => R(x, { buttons: [cancelBtn()] });
+    if (d.step === 'text' || d.step === 'more') {
+      if (F_DONE.test(n) || (d.step === 'more' && F_NO.test(n))) {
+        if (!d.lines.length) return ask('Заметка пока пустая. Что записать?');
+        d.step = 'remind';
+        return R('Напомнить об этом? Скажите когда («завтра в 9:00», «через час») или «нет».', { buttons: [btn('Нет', 'cmd:нет'), cancelBtn()] });
+      }
+      if (d.step === 'more' && (F_YES.test(n) || F_MORE.test(n))) { d.step = 'text'; return ask('Что добавить?'); }
+      d.lines.push(t.charAt(0).toUpperCase() + t.slice(1)); d.step = 'more';
+      return R('Записал ✓ (' + d.lines.length + '). Ещё что-то записать? Пришлите текст или скажите «всё».', { buttons: [btn('Всё', 'cmd:всё'), cancelBtn()] });
+    }
+    if (d.step === 'remind' || d.step === 'when') {
+      const at = whenToDate(t, new Date());
+      if (at) { d.at = at; d.step = 'confirm'; return noteSummary(d); }
+      if (F_NO.test(n) || F_DONE.test(n)) { d.at = null; d.step = 'confirm'; return noteSummary(d); }
+      if (F_YES.test(n)) { d.step = 'when'; return ask('Когда напомнить? Например: «завтра в 9:00» или «через час».'); }
+      return ask('Не понял время. Скажите, например, «завтра в 9:00» или «через час», либо «нет».');
+    }
+    if (F_MORE.test(n)) { d.step = 'text'; return ask('Что добавить?'); }
+    if (F_NO.test(n)) { focusClear(); return R('Ок, ничего не сохранил.'); }
+    if (F_YES.test(n)) return noteSave(d);
+    return R('Скажите «подтверждаю», чтобы сохранить, «добавить ещё» или «отмена».', { buttons: [btn('Подтверждаю', 'cmd:подтверждаю'), btn('Добавить ещё', 'cmd:добавить ещё'), cancelBtn()] });
+  }
+  function noteSave(d) {
+    focusClear();
+    const r = O.actions.addNote(d.lines.join('\n'));
+    if (!r || !r.ok) return R((r && r.msg) || 'Не удалось сохранить заметку.');
+    let rem = null;
+    if (d.at) { rem = { id: C().uid(), text: d.lines[0].slice(0, 80), at: d.at.toISOString(), done: false }; (S().reminders = S().reminders || []).push(rem); O.notify && O.notify.ask(); }
+    C().save(); C().render();
+    undoStack.push(() => { if (r.undo) r.undo(); if (rem) S().reminders = (S().reminders || []).filter(x => x.id !== rem.id); C().save(); C().render(); });
+    return R('Готово ✓ Запись сохранена' + (rem ? ', напомню ' + fmtAt(d.at) : '') + '.', { buttons: [btn('Отменить', 'ag:undo'), btn('Заметки', 'tab:notes')] });
+  }
+  on(/^(?:добавь |создай |сделай |новая |новую |хочу )?(?:заметк[ауе]|запиши(?: в заметк[ауие])?|запиши заметку|в заметк[ауие])\s*[.!]*$/, () => noteWizard(), 'note-wizard');
+  on(/^(?:добавь|создай|поставь|новая|новую)\s+(?:задачу|задача|дз|домашку|задание)\s*[.!]*$/, () => {
+    focusSet('ask', {}, (t, n) => { focusClear(); if (F_NO.test(n)) return R('Ок, не добавляю.'); return understand('добавь задачу ' + t) || R('Не получилось добавить задачу.'); });
+    return R('Какая задача? Напишите название (можно со сроком: «релиз до пятницы»).', { buttons: [cancelBtn()] });
+  }, 'task-ask');
+
   on(/(позвони|позвонить|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*(.*)/, (t, n) => { const q = n.replace(/^.*?(позвони|позвонить|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*/, '').replace(/^(мне|пожалуйста)\s+/, ''); return contact(q, 'call'); }, 'call');
   on(/(напиши|отправь смс|смс|сообщи|напишу)\s+(.*)/, (t, n) => { const m = t.match(/(?:напиши|смс|сообщи)\s+(\S+)\s*[,:]?\s*(?:что\s+)?(.*)$/i); return contact(m ? m[1] : '', 'sms', m ? m[2] : ''); }, 'sms');
-  function contact(q, verb, text) {
+  function contact(q, verb, text, tries) {
     const s = S(), list = findPeople(q);
-    if (!q.trim()) { const withP = s.people.filter(p => p.phone); return withP.length ? R('Кому позвонить?', { buttons: withP.slice(0, 6).map(p => btn(p.name.split(' ')[0] + (p.relation ? ' (' + p.relation + ')' : ''), 'ag:pick:' + p.id + ':' + verb)) }) : R('Контактов с номерами нет. Добавьте близких.', { buttons: [btn('Добавить контакт', 'person:new')] }); }
-    if (!list.length) return R(`Не нашёл «${q.trim()}» в контактах.`, { buttons: [btn('Добавить контакт', 'person:new'), btn('Все контакты', 'tab:contacts')] });
+    if (!q.trim()) { const withP = s.people.filter(p => p.phone); if (withP.length) whoFocus(verb, 0, text); return withP.length ? R(verb === 'sms' ? 'Кому написать?' : 'Кому позвонить?', { buttons: withP.slice(0, 6).map(p => btn(p.name.split(' ')[0] + (p.relation ? ' (' + p.relation + ')' : ''), 'ag:pick:' + p.id + ':' + verb)) }) : R('Контактов с номерами нет. Добавьте близких.', { buttons: [btn('Добавить контакт', 'person:new')] }); }
+    if (!list.length) { if ((tries || 0) < 2) whoFocus(verb, (tries || 0) + 1, text); return R(`Не нашёл «${q.trim()}» в контактах.`, { buttons: [btn('Добавить контакт', 'person:new'), btn('Все контакты', 'tab:contacts')] }); }
     if (list.length > 1) { pending.pickKey = N(q).replace(/[^а-яa-z0-9 ]/g, '').trim(); return R('Кому именно?', { buttons: list.slice(0, 6).map(p => btn(p.name + (p.relation ? ' · ' + p.relation : ''), 'ag:pick:' + p.id + ':' + verb)) }); }
     const p = list[0], eta = O.lastPlan && O.lastPlan.kind === 'home' && O.lastPlan.options[0] ? `Выехал домой на автобусе №${O.lastPlan.options[0].number}, буду примерно в ${E.fmt(O.lastPlan.options[0].arrive)}` : '';
     if (!phoneOf(p)) return R(`У контакта «${p.name}» нет номера.`, { buttons: [btn('Добавить номер', 'person:' + p.id)] });
@@ -372,12 +498,12 @@
 
   // 7) напоминания
   on(/^напомни[а-яёa-z0-9_]*\s*(?:мне)?\s*(.*)/, (t, n, now) => {
-    let rest = t.replace(/^напомни[а-яёa-z0-9_]*\s*(?:мне)?\s*/i, ''); const ti = timeIn(N(rest)), day = dayIn(N(rest), now);
-    if (!ti && !day) return R('Когда напомнить? Например: «напомни через 30 минут позвонить маме» или «напомни завтра в 8:00 взять форму».');
+    let rest = t.replace(/^напомни[а-яёa-z0-9_]*\s*(?:мне)?\s*/i, ''); const ti = tIn(N(rest)), day = dayIn(N(rest), now);
+    if (!ti && !day) { const what = rest.trim(); remindFocus(what, ''); return R(what ? 'Когда напомнить «' + what + '»? Например: «завтра в 9:00» или «через час».' : 'О чём напомнить?', { buttons: [cancelBtn()] }); }
     let at = new Date(now);
     if (day) at = new Date(day.d);
     if (ti && ti.off != null) at = new Date(now.getTime() + ti.off * 60000); else if (ti && ti.at != null) { at.setHours(Math.floor(ti.at / 60), ti.at % 60, 0, 0); if (!day && at <= now) at = E.addDays(at, 1); } else { at.setHours(8, 0, 0, 0); }
-    rest = rest.replace(/через\s+(?:полчаса|час|\d+\s*\S+)/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}[:.]\d{2}/i, '').replace(/(?:^|[^а-яёa-z0-9_])(послезавтра|завтра|сегодня)(?![а-яёa-z0-9_])/i, '').replace(/\s+/g, ' ').trim() || 'Напоминание';
+    rest = rest.replace(/через\s+(?:полчаса|час|\d+\s*\S+)/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}[:.]\d{2}/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}(?=\s|$)(?:\s*(?:утра|вечера|дня|ночи))?/i, ' ').replace(/(?:^|[^а-яёa-z0-9_])(послезавтра|завтра|сегодня)(?![а-яёa-z0-9_])/i, '').replace(/\s+/g, ' ').trim() || 'Напоминание';
     const r = { id: C().uid(), text: rest[0].toUpperCase() + rest.slice(1), at: at.toISOString(), done: false };
     return change(`Напомню «${r.text}» ${at.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.`, () => { (S().reminders = S().reminders || []).push(r); O.notify && O.notify.ask(); }, () => { S().reminders = S().reminders.filter(x => x.id !== r.id); });
   }, 'remind');
@@ -532,7 +658,7 @@
   }, 'help');
 
   // порядок: сначала сценарии/SOS и ТОЧНЫЕ команды-изменения, потом общие «справочные» правила, последним — обучение алиасам
-  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
+  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'note-wizard', 'task-ask', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
   const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
 
 
@@ -598,7 +724,7 @@
 
   on(/^(?:добавь\s+)?(заметка|заметку|запиши|запиши заметку|note)\s+(.+)/i, (t, n, now, m) => {
     const text = (m && m[2]) || t.replace(/^(?:добавь\s+)?(заметка|заметку|запиши|запиши заметку|note)\s+/i, '');
-    const r = O.actions.addNote(text.trim());
+    const r = O.actions.addNote(text.replace(/^(?:в|на)\s+заметк[ауие]\s*[:,—-]?\s*/i, '').trim());
     if (r.ok && r.undo) { undoStack.push(r.undo); return R(r.msg, { buttons: [btn('Отменить', 'ag:undo'), btn('Заметки', 'tab:notes')] }); }
     return R(r.msg);
   }, 'note');
@@ -1009,6 +1135,7 @@
     } catch (e) { return text; }
   }
   A.process = function (text) {
+    { const fr = focusStep(text); if (fr) return fr; }   // продолжение незаконченной команды
     text = spokenMath(text);
     try { const pre = O.inline && O.inline.handle(text); if (pre && pre.length) return pre; } catch (e) { console.error('inline', e); }
     text = toLegacy(text);
