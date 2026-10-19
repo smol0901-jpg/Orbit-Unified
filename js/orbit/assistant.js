@@ -991,7 +991,18 @@
     try {
       const V = window.CifraVoice; if (!V || !text) return text;
       const p = V.parse(text);
+      /* разбор устного выражения применим только к чистым математическим фразам:
+         «15% от 2000», «реши x^2-4=0», «+7 999 123-45-67» голосовой парсер калечит
+         до обрывков («%30200», «*^2-40», «+7999123-45-67»). Если в тексте есть слова
+         или знаки, которые parse() не понимает полностью, — оставляем текст как есть,
+         его обработают навыки inline. */
       if (p.unk.length || !p.expr || !/\d/.test(p.expr) || !/[+−×÷^%]|\(/.test(p.expr)) return text;
+      /* в тексте не должно быть слов, кроме служебных («сколько будет», «посчитай») */
+      const words = String(text).toLowerCase().replace(/ё/g, 'е').match(/[а-яa-z]+/g) || [];
+      if (words.some(w => !['сколько', 'будет', 'посчитай', 'вычисли', 'и'].includes(w))) return text;
+      /* разбор обратимый: выражение из текста получается только склейкой токенов без потерь и вставки своих символов */
+      const toks = String(text).match(/[0-9]+(?:[ .\u00a0][0-9]+)*(?:[.,][0-9]+)?|[+\-*/^%()π]|[√∛]|pi|sin|cos|tan|sqrt|квадрат|куб|плюс|минус|умнож\S*|дел\S*|степени|прц?%/g) || [];
+      if (toks.join('').replace(/\s+/g, '') !== String(text).replace(/\s+/g, '')) return text;
       return 'посчитай ' + p.expr.replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/').replace(/√/g, 'sqrt').replace(/∛/g, 'cbrt').replace(/π/g, 'pi');
     } catch (e) { return text; }
   }
