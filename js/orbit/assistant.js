@@ -502,6 +502,19 @@
     const Cl = O.cloud; if (!Cl) return R('Модуль облака не загружен.');
     return R(Cl.statusLine() + '. Последняя синхронизация: ' + (Cl.lastSyncAt ? new Date(Cl.lastSyncAt).toLocaleString('ru-RU') : 'ещё не выполнялась') + '. ⚠ Возможны сбои без ВПН — локальные данные всегда в безопасности.');
   }, 'cloud-status');
+
+  /* ───── 5.8: облако, стена, друзья, личные сообщения, cron+push — В РАЗРАБОТКЕ ─────
+     Код правил ниже сохранён без изменений. Пока CLOUD_READY = false, они отвечают коротко и ничего не ломают.
+     Как вернуть всё при старте 5.8 — docs/CLOUD-STUBS.md (поиск по «CLOUD_READY»). */
+  const CLOUD_READY = false;
+  const CLOUD_SOON = 'Облако, стена, друзья, личные сообщения и расписания с push сейчас в разработке — появятся в версии 5.8. Всё остальное работает как обычно.';
+  /* имя правила → слово-«замок»: если в тексте его нет, правило пропускается (чтобы «лента», «опубликуй», «отправь сообщение» не перехватывались зря) */
+  const CLOUD_GATE = { 'cloud-sync': null, 'cloud-status': null, 'cron-list': null, 'cfriend': null, 'wall-post': /стен/, 'wall-read': /стен|облак/, 'cron-add': /задани|сценари|cron/, 'cdm': /личн/ };
+  INT.forEach(it => {
+    if (!Object.prototype.hasOwnProperty.call(CLOUD_GATE, it.name)) return;
+    const orig = it.fn, gate = CLOUD_GATE[it.name];
+    it.fn = function (t, n) { if (CLOUD_READY) return orig.apply(this, arguments); return (!gate || gate.test(n || t || '')) ? R(CLOUD_SOON) : null; };
+  });
   on(/^(помощь|помоги мне|что (ты )?(умеешь|можешь)|команды)$/, () => {
     const skills = (O.actions && O.actions.SKILLS) || [];
     const byCat = {};
@@ -519,7 +532,7 @@
   }, 'help');
 
   // порядок: сначала сценарии/SOS и ТОЧНЫЕ команды-изменения, потом общие «справочные» правила, последним — обучение алиасам
-  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
+  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
   const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
 
 
@@ -1074,7 +1087,7 @@
     else if (a === 'yes') { const p = pending[x]; if (p) { p.doFn(); C().save(); C().render(); undoStack.push(p.undoFn); delete pending[x]; push(R('Готово.', { buttons: [btn('Отменить', 'ag:undo')] })); } }
     else if (a === 'noop') { /* ignore */ }
     else if (a === 'panel') { A.panel = x || 'chat'; A.render(false); return; }
-    else if (a === 'cfriend') { const Cl = O.cloud; if (Cl && Cl.logged()) { Cl.addFriend(y).then(() => { push(R('Приглашение отправлено ✓')); Cl.loadFriends().catch(() => {}); }).catch(e => push(R('Сбой: ' + ((e && e.message) || e)))); } }
+    else if (a === 'cfriend') { if (!CLOUD_READY) { push(R(CLOUD_SOON)); } else { const Cl = O.cloud; if (Cl && Cl.logged()) { Cl.addFriend(y).then(() => { push(R('Приглашение отправлено ✓')); Cl.loadFriends().catch(() => {}); }).catch(e => push(R('Сбой: ' + ((e && e.message) || e)))); } } }
     else if (a === 'pack') {
       const day = +x, item = y;
       if (O.actions && O.actions.togglePack) {
@@ -1281,6 +1294,10 @@
       return;
     }
     if (A.panel === 'scripts') { if (O.scripts) O.scripts.panel(body); else body.innerHTML = '<p style="padding:16px">Модуль сценариев не загружен.</p>'; return; }
+    if (A.panel === 'cloud' && !CLOUD_READY) {
+      body.innerHTML = '<div class="o-panel o-scripts" style="display:block;padding:16px"><p style="margin:0 0 8px"><b>Облако — в разработке</b></p><p class="muted" style="margin:0">Синхронизация между устройствами, общая стена, друзья, личные сообщения и расписания с push появятся в версии 5.8. Сейчас всё хранится локально на вашем устройстве.</p></div>';
+      return;
+    }
     if (A.panel === 'cloud') {
       const Cl = O.cloud;
       body.innerHTML = `<div class="o-panel o-scripts" style="display:block;flex-direction:column;gap:8px;padding:12px">

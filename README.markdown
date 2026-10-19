@@ -53,4 +53,4 @@ npx serve .          # или любой статический сервер; н
 
 ## Версия
 
-См. `CHANGELOG.md`.
+См. `CHANGELOG.md`. Планы: `docs/ROADMAP-5.8.md` (база данных и облако — в 5.8), реестр заглушек — `docs/CLOUD-STUBS.md`, подготовка к БД — `docs/DB-MIGRATION-5.8.md`.
