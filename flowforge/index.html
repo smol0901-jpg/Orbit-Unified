@@ -1,0 +1,200 @@
+<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#1e1e2e"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="FlowForge Studio — конструктор блок-схем: офлайн, PNG/SVG/PDF, JSON, PWA">
+<title>FlowForge Studio — конструктор блок-схем</title>
+<link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon.svg"><link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preload" as="image" href="icons/logo.webp">
+<link rel="stylesheet" href="css/style.css?v=2.9.1">
+<noscript><style>#splash{display:none}</style></noscript>
+<script defer src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script defer src="js/app.js?v=2.9"></script>
+<script type="module" src="agent/index.js?v=1.1.0"></script></head><body>
+<div id="splash" role="presentation"><div class="sp-in"><img src="icons/logo.webp" alt="Neural Architect Premium++" width="681" height="378"><div class="sp-t">FlowForge Studio</div><div class="sp-s">Профессиональный конструктор блок-схем</div><div class="sp-bar"><i></i></div><small>Нажмите, чтобы пропустить</small></div></div>
+<script>(function(){var s=document.getElementById('splash');try{if(JSON.parse(localStorage.ffCfg).splash===false){s.remove();return}}catch(e){}var d=function(){s.classList.add('out');setTimeout(function(){s.remove()},500)};setTimeout(d,3000);s.onclick=d})()</script>
+<header id="top"><b class="logo">⚡ FlowForge</b><span class="pnl" id="pnl" data-a="menu" title="Название схемы"></span>
+<button data-a="undo" title="Отменить (Ctrl+Z)">↶</button><button data-a="redo" title="Повторить (Ctrl+Y)">↷</button>
+<span class="vr"></span>
+<button data-t="select" class="on" title="Выбор (V)">↖</button><button data-t="pan" title="Рука (H / пробел)">✋</button><button data-t="link" title="Связать: тап по двум блокам (C)">🔗</button><button data-t="run" title="Режим выполнения: нажимайте на блоки и пункты чек-листов, чтобы отмечать выполненное">✅</button>
+<span class="vr"></span>
+<button data-a="grp" title="Объединить выделенные блоки в группу (Ctrl+G)">▣</button><button data-a="route" id="routeBtn" title="Тип линий: плавные / угловые / прямые">〰</button>
+<span class="sep"></span>
+<button data-a="view" title="Режим просмотра">👁</button><button data-a="bg" title="Сменить фон">🎨</button><button data-a="menu" title="Меню и настройки">☰</button></header>
+<nav id="pal"></nav>
+<main id="stage"><div id="gridl"></div><svg id="cv"></svg>
+<div id="hud"><button data-a="zout">−</button><span id="info"></span><button data-a="zin">+</button><button data-a="fit" title="Показать всё (F)">⛶</button><button data-a="unrot" id="cmp" class="dim" title="Выровнять лист: вернуть без поворота"><svg id="cmpi" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" opacity=".5"/><path d="M12 3l3.4 9H8.6z" fill="#f38ba8"/><path d="M12 21l-3.4-9h6.8z" fill="currentColor" opacity=".75"/></svg></button><button data-a="prog" id="progBtn" title="Прогресс выполнения">☑</button><button data-a="map" title="Мини-карта">🗺</button><button data-a="find" title="Поиск блока (Ctrl+F)">🔍</button><button data-a="lint" title="Проверка схемы">🩺</button><button data-a="ctxbtn" title="Быстрые действия">⋯</button></div>
+<div id="find" hidden><input id="fq" placeholder="Найти блок…" autocomplete="off"><span id="fc"></span><button data-a="fprev" title="Предыдущий">↑</button><button data-a="fnext" title="Следующий">↓</button><button data-a="fclose">✕</button></div>
+<div id="lintp" hidden><div class="lh"><b>Проверка схемы</b><span><button data-a="lint" title="Проверить заново">↻</button><button data-a="lintx">✕</button></span></div><div id="lintl"></div></div>
+<div id="progp" hidden><div class="lh"><b>Выполнение</b><span><button data-a="progx" title="Закрыть">✕</button></span></div><div id="progl"></div></div>
+<button id="vwx" data-a="view">✕ Выйти из просмотра</button>
+<aside id="insp" hidden>
+<div class="ih"><b id="ititle"></b><span><button class="d" data-a="del" title="Удалить">🗑</button><button data-a="ctxbtn" title="Быстрые действия">⋯</button><button data-a="inspmin" id="imin" title="Свернуть панель">▾</button></span></div>
+<div class="sec" id="s-text"><h4>Текст блока</h4><textarea id="pt" rows="2" placeholder="Текст блока"></textarea></div>
+<div class="sec" id="s-ck"><h4>Чек-лист</h4><textarea id="pck" rows="4" placeholder="Каждая строка — пункт. [x] в начале — уже выполнен"></textarea><div class="row"><button data-a="ckall">Все ✓</button><button data-a="ckclr">Сбросить</button></div><label class="mini"><input type="checkbox" id="ptrk"> Отслеживать выполнение блока</label></div>
+<div class="sec" id="s-node"><h4>Блок</h4>
+<div class="row"><select id="pty"></select><button data-a="shapes" title="Все фигуры">▦</button><input type="color" id="pc" title="Цвет"><button data-a="resetc" title="Сбросить цвет">↺</button></div>
+<div class="row"><select id="pf" title="Размер текста"><option value="12">Мелкий<option value="14">Обычный<option value="18">Крупный<option value="24">Огромный</select><select id="pb" title="Контур блока"><option value="">Контур<option value="thin">Тонкий<option value="thick">Толстый<option value="dashed">Пунктир<option value="dotted">Точки<option value="none">Без контура</select></div>
+<div class="row sz"><button data-a="autosz" title="Размер по тексту">Авто</button><button data-a="sizefix" title="Зафиксировать текущий размер">Фикс</button><button data-a="sizeminus" title="Меньше">−</button><button data-a="sizeplus" title="Больше">+</button></div>
+<div class="row"><button data-a="dup" title="Копия">⧉</button><button data-a="lock" id="lockBtn" title="Закрепить / открепить">🔒</button><button data-a="front" title="На передний план">⬆</button><button data-a="back" title="На задний план">⬇</button></div>
+<small>Размер подстраивается под текст. Тяните за угол блока, чтобы задать свой (текст подгонится), двойной тап по углу возвращает авторазмер.</small></div>
+<div class="sec" id="s-multi"><h4>Выравнивание</h4><div class="algrid"><button data-al="l">⇤ Лево</button><button data-al="r">⇥ Право</button><button data-al="c">↔ Центр</button><button data-al="t">⤒ Верх</button><button data-al="b">⤓ Низ</button><button data-al="m">↕ Середина</button><button data-al="dh">⋯ По ширине</button><button data-al="dv">⋮ По высоте</button></div><button class="pri" data-a="grp">▣ Объединить в группу</button></div>
+<div class="sec" id="s-edge"><h4>Связь</h4><input id="pl" placeholder="Подпись (Да / Нет)">
+<div class="row"><select id="er" title="Тип линии"><option value="">Авто (общая)<option value="curve">Плавная<option value="ortho">Угловая (обход)<option value="line">Прямая</select><select id="ed" title="Стиль"><option value="solid">Сплошная<option value="dashed">Пунктир<option value="dotted">Точки<option value="dashdot">Штрих-точка</select></div>
+<div class="row w"><select id="ea" title="Стрелки"><option value="end">Стрелка →<option value="both">Стрелки ↔<option value="none">Без стрелок</select><select id="ew" title="Толщина"><option value="1">Тонкая<option value="2">Обычная<option value="3">Толстая<option value="5">Жирная</select><input type="color" id="ec" title="Цвет"><button data-a="resetec" title="Сбросить цвет">↺</button></div>
+<div class="row"><button data-a="rev">⇄ Развернуть</button><button data-a="rstpts" title="Убрать все изломы линии">↯ Сброс</button></div><small>Блок на линии: потяните — получится излом. Двойной тап по излому — убрать.</small></div>
+<div class="sec" id="s-grp"><h4>Группа</h4><input id="gt" placeholder="Название группы"><div class="row"><input type="color" id="gc" title="Цвет"><button data-a="ungrp">Разгруппировать</button></div><small>Тяните за заголовок, чтобы двигать всю группу</small></div>
+<div class="sec" id="s-del"><button class="d" data-a="del">🗑 Удалить</button></div></aside>
+<svg id="mm" viewBox="0 0 180 120" preserveAspectRatio="none" aria-label="Мини-карта"></svg></main>
+
+<dialog id="menu" class="sheet"><div class="sh">
+<div class="sh-head"><div><b>⚡ FlowForge Studio</b><small>Конструктор блок-схем · v2.8</small></div><button class="x" data-close aria-label="Закрыть">✕</button></div>
+<div class="tabs"><button data-tab="file" class="on">📁 Файл</button><button data-tab="tpl">📚 Шаблоны</button><button data-tab="view">🎛 Вид</button><button data-tab="ai">🤖 ИИ</button><button data-tab="more">✨ Ещё</button></div>
+<div class="panes">
+<section data-pane="file">
+<h4>Текущая схема</h4><input id="pn" placeholder="Название схемы" maxlength="60">
+<h4>Мои схемы</h4><div id="plist" class="plist"></div>
+<h4>Схема</h4>
+<div class="cards c2"><button class="card" data-a="new"><i>➕</i><b>Новая</b><small>Пустая схема</small></button><button class="card" data-a="demo"><i>🧩</i><b>Пример</b><small>Заменит текущую</small></button>
+<button class="card" data-a="open"><i>📂</i><b>Открыть</b><small>Файл .json</small></button><button class="card" data-a="paste" data-keep><i>📋</i><b>Вставить</b><small>JSON или Mermaid</small></button></div>
+<h4>Сохранить и экспорт</h4>
+<div class="cards c2"><button class="card" data-a="json"><i>💾</i><b>JSON</b><small>Для редактирования</small></button><button class="card" data-a="png"><i>🖼</i><b>PNG</b><small>Картинка</small></button>
+<button class="card" data-a="svg"><i>✏️</i><b>SVG</b><small>Вектор</small></button><button class="card" data-a="pdf"><i>📕</i><b>PDF</b><small>Для печати</small></button>
+<button class="card" data-a="mmd"><i>🧜</i><b>Mermaid</b><small>Текст в буфер</small></button><button class="card" data-a="copypng"><i>📎</i><b>В буфер</b><small>Копия картинки</small></button>
+<button class="card" data-a="link"><i>🔗</i><b>Ссылка</b><small>Схема внутри адреса</small></button><button class="card" data-a="backup"><i>🛟</i><b>Резерв</b><small>Все схемы в файл</small></button>
+<button class="card wide" data-a="share"><i>📤</i><b>Поделиться</b><small>Отправить картинку в мессенджер</small></button></div>
+<div class="line"><span>Качество PNG</span><div class="seg" id="segSc"><button data-sc="1">1×</button><button data-sc="2">2×</button><button data-sc="3">3×</button></div></div>
+</section>
+<section data-pane="tpl" hidden>
+<p class="note">Готовые схемы для общепита и общие. Открываются как новая схема, текущая сохраняется в «Мои схемы».</p>
+<div class="cards" id="tpllist"></div>
+</section>
+<section data-pane="view" hidden>
+<h4>Фон холста</h4><div class="bgs" id="bgs"></div>
+<h4>Линии связей</h4>
+<div class="seg full" id="segRoute"><button data-route="curve">Плавные</button><button data-route="ortho">Угловые</button><button data-route="line">Прямые</button></div>
+<small class="note">Угловые линии огибают блоки. Для отдельной связи тип, стиль и стрелки меняются в панели справа.</small>
+<h4>Скругление углов</h4><div class="seg full" id="segRad"><button data-rad="0">Острые</button><button data-rad="10">Мягкие</button><button data-rad="24">Круглые</button></div>
+<h4>Усложнители</h4>
+<label class="sw"><span>Избегать пересечений линий<small>Мягкое правило: линии обходят друг друга, на схемах любого размера. Где иначе не пройти, делается исключение, место помечено красным кольцом</small></span><input type="checkbox" id="nocross"><i></i></label>
+<label class="sw"><span>Избегать наложения блоков<small>Блок, брошенный на другой, сдвигается в ближайшее свободное место. Если места нет, остаётся как есть</small></span><input type="checkbox" id="noover"><i></i></label>
+<label class="sw"><span>Подсветка связей выбранного<small>Остальное приглушается, чтобы видеть путь</small></span><input type="checkbox" id="trace"><i></i></label>
+<h4>Шаг сетки</h4><div class="seg full" id="segGs"><button data-gs="10">10</button><button data-gs="20">20</button><button data-gs="40">40</button></div>
+<h4>Раскладка</h4>
+<div class="cards c2"><button class="card" data-a="spread"><i>⤢</i><b>Раздвинуть</b><small>+15% места между блоками</small></button><button class="card" data-a="ncdeep"><i>✂</i><b>Улучшить линии</b><small>Глубже искать пути без пересечений</small></button><button class="card" data-a="tb"><i>↕</i><b>Вниз</b><small>Сверху вниз</small></button><button class="card" data-a="lr"><i>↔</i><b>Вправо</b><small>Слева направо</small></button></div>
+<h4>Показ и проверка</h4>
+<div class="cards c2"><button class="card" data-a="view"><i>👁</i><b>Просмотр</b><small>Без панелей, на весь экран</small></button><button class="card" data-a="lint"><i>🩺</i><b>Проверка</b><small>Найти ошибки в схеме</small></button></div>
+<h4>Параметры</h4>
+<label class="sw"><span>Привязка к сетке<small>Блоки прилипают к сетке 20 px</small></span><input type="checkbox" id="snap"><i></i></label>
+<label class="sw"><span>Мини-карта<small>Обзор всей схемы в углу</small></span><input type="checkbox" id="map"><i></i></label>
+<label class="sw"><span>Сетка<small>Точки на фоне холста</small></span><input type="checkbox" id="grid"><i></i></label>
+<label class="sw"><span>Умные направляющие<small>Подсказки и прилипание к другим блокам</small></span><input type="checkbox" id="guides"><i></i></label>
+<label class="sw"><span>Глубина 2.5D<small>Мягкие тени и «подъём» блоков при движении. На очень больших схемах отключается сама</small></span><input type="checkbox" id="depth"><i></i></label>
+<label class="sw"><span>Поток по линиям<small>Бегущие точки по связям: для показа и презентаций</small></span><input type="checkbox" id="flow"><i></i></label>
+<label class="sw"><span>Заставка при запуске<small>3 секунды, нажмите, чтобы пропустить</small></span><input type="checkbox" id="splashSw"><i></i></label>
+<label class="sw"><span>Подпись в экспорте<small>Маленькая отметка автора на PNG/SVG/PDF</small></span><input type="checkbox" id="sig"><i></i></label>
+</section>
+<section data-pane="ai" hidden>
+<p class="note">Скачайте шаблон или скопируйте промпт, отдайте нейросети (ChatGPT, Claude, DeepSeek, Gemini), а ответ вставьте ниже. Принимаются JSON и Mermaid (flowchart TD …). Координаты не нужны: схема разложится сама.</p>
+<div class="cards c2"><button class="card" data-a="tpl"><i>📥</i><b>Шаблон</b><small>Файл .json</small></button><button class="card" data-a="prompt" data-keep><i>✨</i><b>Промпт</b><small>Копировать</small></button></div>
+<h4>Ответ нейросети</h4>
+<textarea id="pasteBox" rows="7" placeholder="Вставьте JSON или Mermaid (можно вместе с ```)"></textarea>
+<button class="pri big" id="pasteGo">Построить схему</button>
+</section>
+<section data-pane="more" hidden>
+<h4>Инструменты для технолога</h4>
+<div class="cards">
+<a class="card" href="https://smol0901-jpg.github.io/ph-metr/" target="_blank" rel="noopener"><i>🧪</i><b>pH-CHECK PRO</b><small>Контроль кислотности по нормам ХАССП</small></a>
+<a class="card" href="https://haccp-control.netlify.app" target="_blank" rel="noopener"><i>📋</i><b>HACCP Control</b><small>Электронный контроль ХАССП</small></a>
+<a class="card" href="https://smol0901-jpg.github.io/calculator/" target="_blank" rel="noopener"><i>🔥</i><b>DEFORM-1</b><small>Калькулятор ужарки, уварки, упечки</small></a>
+<a class="card" href="https://smol0901-jpg.github.io/neural-architect-premium-pages/" target="_blank" rel="noopener"><i>🧠</i><b>NEURAL ARCHITECT PREMIUM++</b><small>Все проекты автора в одном хабе</small></a></div>
+<h4>Автор и обратная связь</h4>
+<div class="about"><img src="icons/logo.webp" alt="" width="132" height="73"><div><b>NEURAL ARCHITECT PREMIUM++</b><small>ASV_PROD · Цифровые экосистемы для производства и HoReCa</small></div></div>
+<div class="cards">
+<a class="card" data-ln="tg" href="#" target="_blank" rel="noopener"><i>✈️</i><b>Telegram</b><small>ASV_PROD · вопросы и помощь</small></a>
+<a class="card" data-ln="dzen" href="#" target="_blank" rel="noopener"><i>📰</i><b>Дзен</b><small>ASV_PROD · статьи и новости</small></a>
+<a class="card" data-ln="vk" href="#" target="_blank" rel="noopener"><i>💬</i><b>ВКонтакте</b><small>smolyAninovchef · обсудить проект в ЛС</small></a>
+<a class="card" data-ln="gh" href="#" target="_blank" rel="noopener"><i>🐙</i><b>GitHub</b><small>smol0901-jpg · 55+ проектов</small></a>
+<a class="card" href="https://github.com/smol0901-jpg/block-on-main/issues/new" target="_blank" rel="noopener"><i>🐞</i><b>Сообщить об ошибке</b><small>GitHub Issues</small></a>
+<button class="card" data-a="report" data-keep><i>📎</i><b>Данные для отчёта</b><small>Скопировать версию и параметры, вставьте в сообщение</small></button></div>
+<h4>Заказать разработку</h4>
+<div class="cards"><a class="card" data-ln="vk" href="#" target="_blank" rel="noopener"><i>🏭</i><b>Цифровые экосистемы</b><small>Разработка, внедрение, автоматизация, техподдержка для производств и HoReCa</small></a></div>
+<div id="instBox" hidden>
+<div class="cards"><button class="card" data-a="install" id="inst"><i>📲</i><b>Установить</b><small>Как приложение, работает офлайн</small></button></div></div>
+<h4>Приложение</h4>
+<div class="cards"><button class="card" data-a="qr"><i>📲</i><b>Поделиться приложением</b><small>QR-код и ссылка: отсканируйте камерой телефона</small></button><button class="card" data-a="update"><i>🔄</i><b>Обновить приложение</b><small>Загрузить свежую версию, схемы сохранятся</small></button></div>
+<h4>Установка как приложение</h4>
+<p class="note" id="insDone" hidden>✅ Вы уже используете установленное приложение.</p>
+<p class="note">Установленный FlowForge открывается в своём окне без адресной строки, с иконкой, и работает без интернета. Сначала один раз откройте сайт онлайн, чтобы всё загрузилось.</p>
+<details class="ins" id="ins-and"><summary>🤖 Android (Chrome)</summary><ol><li>Откройте сайт в <b>Chrome</b>.</li><li>Нажмите <b>⋮</b> (меню справа вверху).</li><li>Выберите <b>«Установить приложение»</b> (или «Добавить на главный экран») и подтвердите.</li><li>Иконка появится на главном экране и в списке приложений.</li></ol></details>
+<details class="ins" id="ins-ios"><summary>🍎 iPhone и iPad (Safari)</summary><ol><li>Откройте сайт именно в <b>Safari</b>.</li><li>Нажмите кнопку <b>«Поделиться»</b> (квадрат со стрелкой вверх).</li><li>Прокрутите список и выберите <b>«На экран Домой»</b>.</li><li>Нажмите <b>«Добавить»</b>. Иконка появится на экране «Домой».</li></ol><p class="note">Если пункта нет, прокрутите нижний ряд кнопок в меню «Поделиться» до конца и откройте «Изменить действия».</p></details>
+<details class="ins" id="ins-pc"><summary>💻 Windows, Mac, Linux (Chrome, Edge)</summary><ol><li>Откройте сайт в <b>Chrome</b> или <b>Edge</b>.</li><li>В правой части адресной строки нажмите значок установки (монитор со стрелкой) и выберите <b>«Установить»</b>.</li><li>Если значка нет: меню <b>⋮</b> → <b>«Установить FlowForge»</b> (в Edge: <b>…</b> → <b>Приложения</b> → <b>«Установить этот сайт как приложение»</b>).</li><li>Приложение появится в меню «Пуск» или Launchpad, его можно закрепить на панели задач.</li></ol><p class="note">Safari на Mac (macOS 14 и новее): меню «Файл» → «Добавить в Dock». Firefox на компьютере установку сайтов не поддерживает, используйте Chrome или Edge.</p></details>
+<details class="ins"><summary>❓ Обновление и удаление</summary><ul><li>Обновления подтягиваются сами: при запуске с интернетом новая версия загрузится, а применится при следующем открытии.</li><li>Удалить можно как обычное приложение: Android и iOS долгим нажатием на иконку, ПК через меню ⋮ в окне приложения → «Удалить».</li><li>Схемы хранятся в этом браузере или приложении. Для переноса между устройствами сохраните JSON.</li></ul></details>
+
+<details><summary>Жесты и горячие клавиши</summary><p class="note">Щипок — зум, два пальца — поворот листа (🧭 выравнивает) · правая кнопка или долгое нажатие — быстрые действия · Alt+перетаскивание или Alt+колесо — поворот мышью · [ ] — поворот на 15° · пустое место — сдвиг · двойной тап по блоку — правка · блок у блока — связь (в пустое место создаст новый блок) · Shift или рамка — мультивыбор · Ctrl+G — группа · Ctrl+F — поиск · ✅ режим выполнения: нажимайте блоки и пункты чек-листов · Tab — новый блок после выбранного · Enter — правка текста · квадрат в углу блока — размер · блок на выбранной линии — излом · Ctrl+Z/Y · Ctrl+C/V/D · Del · F — показать всё · V/H/C — инструменты</p></details>
+<p class="foot">NEURAL_ARCHITECT_PREMIUM++ · ASV_PROD · MIT License</p>
+</section></div></div></dialog>
+<dialog id="shl" class="sheet wide"><div class="sh"><div class="sh-head"><div><b>Фигуры</b><small id="shsub">Нажмите на фигуру, чтобы добавить на схему</small></div><button class="x" data-shclose aria-label="Закрыть">✕</button></div>
+<div class="shsearch"><input id="shq" placeholder="Поиск фигуры…" autocomplete="off"></div><div class="tabs" id="shtabs"></div><div class="panes"><div class="shgrid" id="shgrid"></div></div></div></dialog>
+<dialog id="sed" class="sheet wide"><div class="sh">
+<div class="sh-head"><div><b>Редактор фигур</b><small>Нарисуйте свою фигуру или загрузите картинку</small></div><button class="x" data-edx aria-label="Закрыть">✕</button></div>
+<div class="tabs"><button data-edm="draw" class="on">✏️ Нарисовать</button><button data-edm="img">🖼 Из картинки</button></div>
+<div class="panes">
+<section id="ed-draw">
+<div class="edtools"><button data-ed="sel" class="on" title="Выбор и перемещение точек">↖</button><button data-ed="add" title="Добавлять точки: тап по холсту">✚</button><button data-ed="smooth" title="Скруглить или заострить выбранную точку">◠</button><button data-ed="del" title="Удалить выбранную точку">⌫</button><button data-ed="close" title="Замкнуть или разомкнуть контур">⭘</button><span class="vr"></span><button data-ed="fh" title="Отразить по горизонтали">⇋</button><button data-ed="fv" title="Отразить по вертикали">⇅</button><button data-ed="fit" title="Растянуть на весь холст">⤢</button><span class="vr"></span><button data-ed="undo" title="Отменить">↶</button><button data-ed="redo" title="Повторить">↷</button><button data-ed="snap" class="on" title="Привязка к сетке">▦</button></div>
+<svg id="edsvg" viewBox="0 0 320 240"></svg>
+<div class="edrow"><select id="edprim"></select><select id="edpath"></select></div>
+<div class="edrow"><button data-ed="adddet">＋ Деталь</button><button data-ed="delpath">Удалить слой</button></div>
+<div class="edrow"><label>Пропорции<select id="edratio"></select></label><label>Текст внутри<select id="edti"><option value="40">40%<option value="50">50%<option value="60">60%<option value="70">70%<option value="80">80%<option value="90">90%<option value="100">100%</select></label></div>
+<p class="note">Тап по точке выбирает её, двойной тап скругляет. Режим ✚ добавляет точки на линию или в конец. «Деталь» — линия внутри фигуры, например перегородка.</p>
+</section>
+<section id="ed-img" hidden>
+<label class="filebtn"><input type="file" id="edfile" accept="image/*"><span>🖼 Выбрать картинку…</span></label>
+<div id="edimgprev"></div>
+<div class="edrow"><label>Вписать<select id="edfit"><option value="contain">Целиком<option value="cover">Заполнить</select></label><label>Форма<select id="edclip"><option value="none">Прямоугольник<option value="round">Скруглённая<option value="oval">Овал</select></label><label>Подпись<select id="edlab"><option value="over">Поверх<option value="below">Под картинкой</select></label></div>
+</section>
+<h4>Как выглядит</h4><svg id="edprev" viewBox="0 0 360 120"></svg>
+</div>
+<div class="se-foot"><input id="edname" placeholder="Название фигуры" maxlength="40"><button id="edsave">Сохранить</button><button class="pri" id="edapply">На схему</button></div>
+</div></dialog>
+<dialog id="qrd" class="sheet"><div class="sh"><div class="sh-head"><div><b>Поделиться приложением</b><small>Наведите камеру телефона на QR-код</small></div><button class="x" data-qrx aria-label="Закрыть">✕</button></div><div class="panes"><div id="qrbox" class="qrbox"></div><p class="note" id="qrerr"></p><label class="qrl">Ссылка<input id="qru" type="url" spellcheck="false" autocomplete="off"></label>
+<div class="cards c2"><button class="card" data-qr="copy"><i>🔗</i><b>Копировать</b><small>Ссылку на приложение</small></button><button class="card" data-qr="share"><i>📤</i><b>Отправить</b><small>В мессенджер</small></button><button class="card" data-qr="png"><i>🖼</i><b>QR в PNG</b><small>Для печати и чата</small></button><button class="card" data-qr="svg"><i>✏️</i><b>QR в SVG</b><small>Вектор</small></button></div>
+<p class="note">Откройте ссылку на телефоне и установите как приложение: меню → «Ещё» → «Установка». Адрес можно заменить на свой.</p><button class="card wide" data-qr="reset"><i>↺</i><b>Вернуть адрес по умолчанию</b></button></div></div></dialog>
+<div id="ctx" hidden></div>
+<div id="toast" popover="manual"></div><input type="file" id="fi" accept=".json,application/json" hidden>
+<script>
+/* Orbit parent bridge: load scheme from postMessage / localStorage */
+(function(){
+  function loadOrbit(){
+    try {
+      var raw = localStorage.getItem('ffOrbitLoad');
+      if (!raw) return;
+      var meta = JSON.parse(raw);
+      if (!meta || !meta.pid) return;
+      var PJ = {};
+      try { PJ = JSON.parse(localStorage.getItem('ffProj')||'{}')||{}; } catch(e){}
+      var p = PJ[meta.pid];
+      if (p && p.d && typeof setDoc === 'function') {
+        setDoc(p.d);
+        if (typeof reveal === 'function') reveal();
+        if (typeof toast === 'function') toast('✅ Схема из Контура: '+(p.n||''));
+        localStorage.removeItem('ffOrbitLoad');
+      }
+    } catch(e){ console.warn('orbit bridge', e); }
+  }
+  window.addEventListener('message', function(ev){
+    var d = ev.data;
+    if (!d || d.type !== 'orbit-load-scheme') return;
+    try {
+      if (d.doc && typeof setDoc === 'function') {
+        setDoc(d.doc);
+        if (typeof reveal === 'function') reveal();
+        if (typeof toast === 'function') toast('✅ Схема из агента Контура');
+      }
+    } catch(e){ console.warn(e); }
+  });
+  if (document.readyState === 'complete') setTimeout(loadOrbit, 400);
+  else window.addEventListener('load', function(){ setTimeout(loadOrbit, 400); });
+})();
+</script>
+</body></html>
