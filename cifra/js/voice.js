@@ -84,17 +84,20 @@ const btn=document.createElement('button');btn.id='mic';btn.className='ib';btn.t
 btn.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3"/></svg>';
 top.insertBefore(btn,document.getElementById('hap'));
 const bar=document.createElement('div');bar.id='vtr';bar.setAttribute('role','status');document.body.append(bar);
+bar.addEventListener('click',()=>{if(last)speak(last,true)});
 let rec=null,on=false,tm=0;
 const say=(m,ms)=>{bar.textContent=m;bar.classList.add('on');clearTimeout(tm);if(ms)tm=setTimeout(()=>bar.classList.remove('on'),ms)};
-let utt=null;
+let utt=null,last='';
 /* iOS разрешает озвучку только после жеста: «прогреваем» синтез на нажатии 🎙, потом говорим с небольшой паузой */
 function unlock(){try{const ss=window.speechSynthesis;if(!ss)return;const u=new SpeechSynthesisUtterance(' ');u.volume=0;u.lang='ru-RU';ss.speak(u);ss.getVoices()}catch(e){}}
-function speak(t){try{const ss=window.speechSynthesis;if(!ss)return say('🔊 Этот браузер не умеет озвучивать',3000);
-  ss.cancel();
+function speak(t,now){try{const ss=window.speechSynthesis;if(!ss)return say('🔊 Этот браузер не умеет озвучивать',3000);
+  last=t;ss.cancel();
   setTimeout(()=>{const u=utt=new SpeechSynthesisUtterance(t);u.lang='ru-RU';u.rate=1;u.volume=1;
     const v=ss.getVoices().find(x=>/^ru/i.test(x.lang));if(v)u.voice=v;
     u.onerror=ev=>{if(ev.error!=='canceled'&&ev.error!=='interrupted')say('🔊 Не удалось озвучить ('+ev.error+')',3500)};
-    if(ss.resume)ss.resume();ss.speak(u)},300)}catch(e){}}
+    u.onstart=()=>{u.ok=1};
+    if(ss.resume)ss.resume();ss.speak(u);
+    if(!now)setTimeout(()=>{if(!u.ok&&!ss.speaking)say('🔊 Телефон не дал озвучить сам — нажмите на эту плашку, и я произнесу ответ',6000)},2200)},now?0:700)}catch(e){}}
 function handle(text){
   const p=parse(text);
   if(!p.expr&&!p.eq&&!p.cmd){fb('err');return say('Не понял: «'+text+'»',3500)}
@@ -111,7 +114,7 @@ function start(){
   rec.onerror=e=>{err=e.error};
   rec.onend=()=>{on=false;btn.classList.remove('listening');
     if(err==='not-allowed'||err==='service-not-allowed'){fb('err');say('Нет доступа к микрофону — разрешите его в настройках браузера',4500)}
-    else if(err==='network'){fb('err');say('Для распознавания речи нужен интернет',4000)}
+    else if(err==='network'){fb('err');say(/YaBrowser|Yowser|OPR\/|Brave/i.test(navigator.userAgent)||navigator.onLine?'Распознавание речи этим браузером не поддерживается (служба Google недоступна — так бывает в Яндекс.Браузере, Opera, Brave). Откройте Контур в Chrome или Edge.':'Нет интернета — распознавание речи работает только онлайн',9000)}
     else if(full.trim())handle(full);
     else{fb('err');say('Не расслышал, попробуйте ещё раз',2500)}};
   try{rec.start()}catch(e){}}

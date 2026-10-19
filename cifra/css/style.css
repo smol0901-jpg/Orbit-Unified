@@ -432,7 +432,7 @@ dialog .acts button:active{background:var(--fn)}
 #mic.listening{color:#fff;background:var(--op,#7c5cff);animation:micp 1.1s ease-in-out infinite}
 @keyframes micp{50%{box-shadow:0 0 0 8px rgba(124,92,255,.28)}}
 #vtr{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));max-width:90vw;padding:10px 16px;border-radius:14px;background:var(--key);color:var(--fg);font-size:.95rem;box-shadow:0 6px 24px rgba(0,0,0,.25);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s}
-#vtr.on{opacity:1}
+#vtr.on{opacity:1;pointer-events:auto}
 
 .top #mic{background:var(--op);color:var(--opfg)}
 

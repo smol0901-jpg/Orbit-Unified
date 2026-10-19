@@ -57,7 +57,7 @@
   /* ───── ответ: единый формат ───── */
   const R = (text, extra = {}) => Object.assign({ role: 'bot', text, cards: [], buttons: [] }, extra);
   const btn = (label, act) => ({ label, act });
-  const sug = () => [btn('Что дальше', 'cmd:что дальше'), btn('Когда автобус домой', 'cmd:когда автобус домой'), btn('Позвонить', 'cmd:позвони маме')];
+  const sug = () => [btn('Что дальше', 'cmd:что дальше'), btn('Когда автобус домой', 'cmd:когда автобус домой'), callBtn()];
 
   /* изменение с подтверждением/отменой */
   function change(text, doFn, undoFn, extra) {
@@ -289,6 +289,27 @@
   }, 'day');
 
   // 5) звонок / SMS
+  /* ───── быстрый звонок и «Мои команды»: всё настраивает пользователь, имён в коде нет ───── */
+  const firstName = p => (p.name || '').split(' ')[0] || p.name;
+  const favPerson = () => { const p = S().people.find(v => v.id === mem.favCall); return p && phoneOf(p) ? p : null; };
+  const callBtn = () => { const f = favPerson(); return f ? btn('Позвонить ' + firstName(f), 'cmd:позвони ' + f.name) : btn('Позвонить', 'cmd:позвони'); };
+  const myCmds = () => {
+    const f = favPerson(), al = Object.entries(mem.aliases || {}), people = S().people;
+    const lines = ['Быстрый звонок: ' + (f ? f.name : 'не выбран')];
+    if (al.length) lines.push('Привязки: ' + al.map(([k, v]) => { const p = people.find(x => x.id === v); return '«' + k + '» → ' + (p ? p.name : '?'); }).join('; '));
+    lines.push('Новая привязка: напишите «папа — это Олег» (имя из контактов).');
+    return R(lines.join('\n'), { buttons: [btn(f ? 'Сменить быстрый звонок' : 'Выбрать быстрый звонок', 'cmd:быстрый звонок')].concat(f ? [btn('Убрать быстрый звонок', 'ag:favclear')] : [], al.map(([k]) => btn('Убрать «' + k + '»', 'ag:unalias:' + encodeURIComponent(k)))) });
+  };
+  on(/^(мои команды|мои привязки|привязки|быстрые команды)$/, () => myCmds(), 'mycmds');
+  on(/^быстрый звонок\s*(.*)$/, (t, n) => {
+    const q = ((n.match(/быстрый звонок\s*(.*)$/) || [])[1] || '').trim(), withP = S().people.filter(p => phoneOf(p));
+    if (!withP.length) return R('Контактов с номерами нет. Добавьте близких.', { buttons: [btn('Добавить контакт', 'person:new')] });
+    const list = q ? findPeople(q).filter(p => phoneOf(p)) : withP;
+    if (q && !list.length) return R('Не нашёл «' + q + '» среди контактов с номером.', { buttons: [btn('Все контакты', 'tab:contacts')] });
+    if (q && list.length === 1) { mem.favCall = list[0].id; saveMem(); return R('Быстрый звонок: ' + list[0].name + '. Кнопка «Позвонить ' + firstName(list[0]) + '» теперь звонит этому контакту.', { buttons: [btn('Мои команды', 'cmd:мои команды')] }); }
+    return R('Кому звонить по кнопке «Позвонить»?', { buttons: list.slice(0, 8).map(p => btn(firstName(p) + (p.relation ? ' (' + p.relation + ')' : ''), 'ag:fav:' + p.id)) });
+  }, 'favcall');
+
   on(/(позвони|позвонить|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*(.*)/, (t, n) => { const q = n.replace(/^.*?(позвони|позвонить|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*/, '').replace(/^(мне|пожалуйста)\s+/, ''); return contact(q, 'call'); }, 'call');
   on(/(напиши|отправь смс|смс|сообщи|напишу)\s+(.*)/, (t, n) => { const m = t.match(/(?:напиши|смс|сообщи)\s+(\S+)\s*[,:]?\s*(?:что\s+)?(.*)$/i); return contact(m ? m[1] : '', 'sms', m ? m[2] : ''); }, 'sms');
   function contact(q, verb, text) {
@@ -420,7 +441,7 @@
   }, 'help');
 
   // порядок: сначала сценарии/SOS и ТОЧНЫЕ команды-изменения, потом общие «справочные» правила, последним — обучение алиасам
-  const PRI = ['script', 'sos', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
+  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
   const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
 
 
@@ -974,6 +995,9 @@
     }
     else if (a === 'no') { delete pending[x]; push(R('Хорошо, не делаю.')); }
     else if (a === 'next') { const lp = O.lastPlan; if (lp && lp.options.length > 1) { lp.options.shift(); const b = lp.options[0]; push(R(`Следующий: №${b.number} в ${b.time}. Выйти в ${E.fmt(b.leaveBy)}, запас ${left(Math.max(0, b.slack))}.`, { cards: lp.options.slice(0, 3).map((o, i) => busCard(o, i, lp.kind)), buttons: lp.options.length > 1 ? [btn('Ещё следующий', 'ag:next')] : [] })); } else push(R('Больше подходящих рейсов нет.', { buttons: [btn('Все рейсы', 'tab:buses')] })); }
+    else if (a === 'fav') { const p = S().people.find(v => v.id === x); if (p) { mem.favCall = p.id; saveMem(); push(R('Быстрый звонок: ' + p.name + '. Кнопка «Позвонить ' + firstName(p) + '» теперь звонит этому контакту.', { buttons: [btn('Мои команды', 'cmd:мои команды')] })); } }
+    else if (a === 'favclear') { delete mem.favCall; saveMem(); push(R('Быстрый звонок сброшен: кнопка «Позвонить» будет спрашивать, кому звонить.', { buttons: [btn('Мои команды', 'cmd:мои команды')] })); }
+    else if (a === 'unalias') { const k = decodeURIComponent(x || ''); delete mem.aliases[k]; saveMem(); push(R('Убрал привязку «' + k + '».', { buttons: [btn('Мои команды', 'cmd:мои команды')] })); }
     else if (a === 'pick') { const p = S().people.find(v => v.id === x); if (p) { if (pending.pickKey) { mem.aliases[pending.pickKey] = p.id; saveMem(); } push(R(y === 'sms' ? `Сообщение для ${p.name}.` : `Нажмите, чтобы позвонить: ${p.name}.`, { cards: [personCard(p, '')] })); } }
     else if (a === 'done') { const h = S().homework.find(v => v.id === x); if (h) { h.done = true; C().save(); C().render(); undoStack.push(() => { h.done = false; }); push(R(`Отметил: ${h.title}.`, { buttons: [btn('Отменить', 'ag:undo')] })); } }
     else if (a === 'forget') { mem = { aliases: {}, notes: [], msgs: [], facts: [] }; A.msgs = []; O.habits.clear(); C().clearAgentMemory && C().clearAgentMemory(); saveMem(); push(R('Память очищена.')); }
@@ -1081,7 +1105,7 @@
     else if (ev.length && nm >= Math.max(...ev.map(e => e.e)) - 40) { add('Я освободился', 'я освободился'); add('Когда автобус домой', 'когда автобус домой'); }
     else add('Что дальше', 'что дальше');
     if (nm >= 17 * 60) add('Что взять завтра', 'что взять завтра');
-    if (S().people.some(p => p.phone)) add('Позвонить маме', 'позвони маме');
+    if (S().people.some(p => p.phone)) { const f = favPerson(); add(f ? 'Позвонить ' + firstName(f) : 'Позвонить', f ? 'позвони ' + f.name : 'позвони'); }
     add('Задачи', 'что задано'); add('Помощь', 'помощь');
     try {
       if (O.actions && O.actions.SKILLS) {
@@ -1113,6 +1137,7 @@
         ['cmd:заметка', 'file', 'Заметка'],
         ['cmd:журнал ', 'note', 'Журнал'],
         ['cmd:позвони', 'phone', 'Позвонить'],
+        ['cmd:мои команды', 'users', 'Мои команды'],
         ['tab:schedule', 'calendar', 'Встречи'],
         ['tab:contacts', 'users', 'Контакты'],
         ['tab:tasks', 'check', 'Задачи'],
@@ -1194,7 +1219,7 @@
   A.render = function (scroll) {
     const root = $('agent-root'); if (!root) return;
     const b = O.brand();
-    if (!A.msgs.length) A.msgs.push(R(`${b.hello || 'Привет'}! Я ${b.agent}. Скажи «я освободился» — подберу автобус, «позвони маме» — звонок. Вкладки сверху: быстрые действия, день, навыки.`, { buttons: sug() }));
+    if (!A.msgs.length) A.msgs.push(R(`${b.hello || 'Привет'}! Я ${b.agent}. Скажи «я освободился» — подберу автобус, «позвони» — звонок. Вкладки сверху: быстрые действия, день, навыки.`, { buttons: sug() }));
     if (!root.querySelector('.o-agent')) {
       root.innerHTML = `<div class="o-agent">
       <div class="o-agent-tabs" id="ag-tabs" role="tablist">

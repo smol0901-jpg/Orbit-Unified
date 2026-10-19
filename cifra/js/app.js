@@ -72,7 +72,7 @@ function render(err){
   const n=r.textContent.length;r.style.fontSize=n>16?'1.9rem':n>11?'2.5rem':'3.4rem'}
 function equals(){if(!expr||done)return;
   try{val=Engine.calc(expr,cfg.deg);if(cfg.keep!=='off')DB.add(show(expr),fmt(val),val).catch(()=>{});
-    prev=expr;expr=toExpr(val);done=true;render();if(wide())drawer(true)}
+    prev=expr;expr=toExpr(val);done=true;render();}
   catch(e){render(e.message||'Ошибка')}}
 function press(k){
   if(k==='c'){expr='';done=false;return render()}
@@ -150,8 +150,8 @@ async function drawer(keepState){const l=$('#list');let h=[];
   h.forEach(x=>{const li=document.createElement('li');li.innerHTML='<small></small><b></b>';
     li.firstChild.textContent=stamp(x.t)+' · '+x.e;li.lastChild.textContent=x.r;
     li.onclick=()=>{expr=toExpr(x.v);done=false;if(!wide())$('#drawer').hidden=true;go('calc');render()};l.append(li)});
-  if(!keepState||wide())$('#drawer').hidden=false;drawer.h=h}
-$('#hist').onclick=()=>drawer();$('#close').onclick=()=>$('#drawer').hidden=true;
+  if(!keepState)$('#drawer').hidden=false;drawer.h=h}
+$('#hist').onclick=()=>{const d=$('#drawer');if(!d.hidden){d.hidden=true;return}drawer()};$('#close').onclick=()=>$('#drawer').hidden=true;
 $('#hc').onclick=async()=>{try{await DB.clear()}catch(e){}toast('История очищена');drawer(true)};
 $('#hs').onclick=()=>share((drawer.h||[]).slice().reverse().map(x=>`${x.e} = ${x.r}`).join('\n')||'История пуста');
 const lib=src=>window.XLSX?Promise.resolve():new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=no;document.head.append(s)});
@@ -208,7 +208,7 @@ if('serviceWorker' in navigator&&!EMBEDDED){
     addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
     navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had)toast('Приложение обновлено — перезапустите')})}}
 
-addEventListener('resize',()=>{if(wide())$('#drawer').hidden=false});
+
 const CB={fmt,money,copy,vib:()=>buzz('soft'),share};
 Tools.conv($('#conv'),CB);Tools.fin($('#fin'),CB);Tools.dateTool($('#dates'),CB);Tools.graph($('#graph'),CB);Tools.board($('#board'),CB);Tools.acc($('#acc'),CB);
 window.addEventListener('cifra-insert',e=>{if(e.detail){expr=String(e.detail);done=false;render();}});
@@ -229,5 +229,5 @@ window.addEventListener('cifra-voice',e=>{const d=e.detail||{};if(tab!=='calc')g
 window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='orbit-calc')return;if(d.tab&&['calc','conv','fin','dates','graph','board','acc'].includes(d.tab))go(d.tab);if(d.expr){expr=String(d.expr);done=false;go('calc');render();}})
 apply();render();
 const q=new URLSearchParams(location.search).get('tab');if(['conv','fin','dates','graph','board','acc'].includes(q))go(q);
-if(wide())drawer(true);else DB.prune(ttl()).catch(()=>{});
+DB.prune(ttl()).catch(()=>{});
 })();

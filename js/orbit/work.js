@@ -27,6 +27,7 @@
     try {
       const payload = {
         aliases: mem.aliases || {},
+        favCall: mem.favCall || '',
         notes: (mem.notes || []).slice(-NOTE_CAP),
         facts: (mem.facts || []).slice(-60),
         msgs: (mem.msgs || []).slice(-MSG_CAP).map(x => ({
