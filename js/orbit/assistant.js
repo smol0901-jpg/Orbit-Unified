@@ -1290,7 +1290,7 @@
           const days = {};
           (mem.msgs || []).forEach(m => { const d = new Date(m.at).toLocaleDateString('ru-RU'); (days[d] = days[d] || []).push(m); });
           return Object.entries(days).slice(-7).map(([d, arr]) => `<div class="sc-card"><b>${d}</b><small>${arr.length} сообщений · всего в памяти ${mem.msgs.length} из 300 локально${Cl && Cl.logged() ? ' · полная история в облаке (до 100 МБ)' : ''}</small>
-            <div class="sc-row">${arr.slice(-3).reverse().map(m => `${m.role === 'user' ? '🟦' : '🟪'} ${esc(String(m.text).slice(0, 60))}`).join('<br>')}</div></div>`;
+            <div class="sc-row">${arr.slice(-3).reverse().map(m => `${m.role === 'user' ? '🟦' : '🟪'} ${esc(String(m.text).slice(0, 60))}`).join('<br>')}</div></div>`).join('');
         })() : '<p class="muted" style="padding:8px">История пуста.</p>'}${Cl && Cl.logged() ? '' : '<p class="o-note" style="margin-top:8px">' + ic('info', 13) + ' Локально агент помнит последние 300 сообщений. Подключите Supabase (по желанию), чтобы хранить всю переписку до 100 МБ и заходить с любого устройства. Возможны сбои без ВПН — данные при этом остаются локально.</p><button class="o-btn pri" data-ag="tab:cloud">Подключить облако</button>'}</div>`;
       return;
     }
