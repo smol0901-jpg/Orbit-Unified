@@ -18,6 +18,9 @@
     start: { label: 'Начало', cat: 'flow' }, end: { label: 'Конец', cat: 'flow' },
     say: { label: 'Сообщение', cat: 'flow', hint: 'Текст в отчёте' },
     cmd: { label: 'Команда агента', cat: 'agent', hint: 'Любая фраза, как в чате' },
+    ask: { label: 'Спросить пользователя', cat: 'flow', hint: 'Ответ сохраняется в переменную {{ответ}}' },
+    set: { label: 'Переменная', cat: 'flow', hint: 'Запомнить значение: {{имя}}' },
+    sub: { label: 'Запустить сценарий', cat: 'agent', hint: 'Подсценарий (до 3 уровней)' },
     day: { label: 'Сегодня', cat: 'data', hint: 'Встречи и блоки дня' },
     tasks: { label: 'Задачи', cat: 'data', hint: 'Просроченные, на сегодня, на неделю' },
     plans: { label: 'Планы', cat: 'data', hint: 'Завтра и цели' },
@@ -65,13 +68,18 @@
   };
 
   /* ───── условия ───── */
-  function cond(c, ctx) {
+  function cond(c, ctx, node) {
     const s = S(), now = ctx.now, di = (now.getDay() + 6) % 7, mins = now.getHours() * 60 + now.getMinutes();
     if (c.k === 'weekday') return c.v === 'off' ? di > 4 : di <= 4;
     if (c.k === 'hw') return (s.homework || []).some(h => !h.done);
     if (c.k === 'overdue') return E().hwGroups(s, now).overdue.length > 0 || (s.reminders || []).some(r => !r.done && r.at && new Date(r.at) < now);
     if (c.k === 'reminders') return (s.reminders || []).some(r => !r.done);
     if (c.k === 'meetings') return E().eventsOn(s, now).list.length > 0;
+    if (c.k === 'count') return ((ctx.visits && node && ctx.visits[node.id]) || 1) <= (+c.n || 1);      // петля: «повторить N раз» после первого прохода
+    if (c.k === 'var') {
+      const raw = ctx.vars[c.name || 'ответ'], a = N(raw != null ? raw : '').trim(), b = N(c.value || '').trim();
+      return c.v === 'eq' ? a === b : c.v === 'empty' ? !a : c.v === 'yes' ? /^(да|ага|конечно|угу|yes|ок|окей|давай|хочу|нужно|надо)/.test(a) : !!b && a.includes(b);
+    }
     if (c.k === 'time') { const p = String(c.at || '12:00').split(':'), x = +p[0] * 60 + +p[1]; return c.v === 'after' ? mins >= x : mins < x; }
     return null;
   }
@@ -104,22 +112,37 @@
 
   /* ───── исполнение узла ───── */
   const kindOf = n => (n.ag && n.ag.b) || (n.type === 'decision' ? 'decision' : n.type === 'terminal' ? 'terminal' : 'say');
+  const interp = (s, ctx) => String(s == null ? '' : s).replace(/\{\{\s*([\wа-яё]+)\s*\}\}/gi, (m, v) => (ctx.vars[v] != null ? ctx.vars[v] : ''));
   async function exec(n, ctx, outs) {
-    const A = O.assistant, k = kindOf(n), ag = n.ag || {}, text = ag.text != null ? ag.text : n.text || '';
-    if (DATA[k]) { const r = DATA[k](ctx); ctx.sections.push({ title: ag.title || r.title, rows: r.rows }); (r.alerts || []).forEach(a => ctx.alerts.push(a)); return outs; }
-    if (k === 'say') { if (text.trim()) ctx.sections.push({ title: ag.title || '', rows: [{ title: text.replace(/\{\{(\w+)\}\}/g, (m, v) => ctx.vars[v] != null ? ctx.vars[v] : '') }] }); return outs; }
+    const A = O.assistant, k = kindOf(n), ag = n.ag || {}, text = interp(ag.text != null ? ag.text : n.text || '', ctx), title = ag.title ? interp(ag.title, ctx) : '';
+    if (DATA[k]) { const r = DATA[k](ctx); ctx.sections.push({ title: title || r.title, rows: r.rows }); (r.alerts || []).forEach(a => ctx.alerts.push(a)); return outs; }
+    if (k === 'say') { if (text.trim()) ctx.sections.push({ title, rows: [{ title: text }] }); return outs; }
     if (k === 'cmd') {
-      const sec = { title: ag.title || text, rows: [], cards: [], buttons: [] };
+      const sec = { title: title || text, rows: [], cards: [], buttons: [] };
       const replies = A && A.quiet ? await A.quiet(text) : [];
       replies.forEach(r => { String(r.text || '').split('\n').filter(Boolean).forEach(l => sec.rows.push({ title: l })); (r.cards || []).forEach(c => sec.cards.push(c)); (r.buttons || []).forEach(b => sec.buttons.push(b)); });
       if (!replies.length) sec.rows.push({ title: 'Не удалось выполнить «' + text + '»', warn: true });
       ctx.sections.push(sec); return outs;
     }
+    if (k === 'ask') {                                   // вопрос с произвольным ответом → переменная
+      const q = text || 'Ваш ответ?', v = ag.var || 'ответ', ans = A && A.askText ? await A.askText(q) : null;
+      if (ans == null) { ctx.stopped = true; return []; }
+      ctx.vars[v] = ans; ctx.sections.push({ title: '', rows: [{ title: q, meta: '→ ' + ans }] }); return outs;
+    }
+    if (k === 'set') { ctx.vars[ag.var || 'x'] = interp(ag.value != null ? ag.value : '', ctx); return outs; }
+    if (k === 'sub') {                                    // подсценарий
+      const sc = O.scripts && O.scripts.find ? O.scripts.find(ag.ref || text) : null;
+      if (!sc) { ctx.sections.push({ title: '', rows: [{ title: 'Подсценарий не найден: «' + (ag.ref || text) + '»', warn: true }] }); return outs; }
+      if ((ctx.depth || 0) >= 3) { ctx.warn.push('слишком глубокая вложенность сценариев'); return outs; }
+      if (sc.graph) await walk(sc.graph, ctx, {}, (ctx.depth || 0) + 1);
+      else { ctx.sections.push({ title: '', rows: [{ title: 'Запущен сценарий «' + sc.name + '» (пошаговый)' }] }); try { await O.scripts.run(sc); } catch (e) { ctx.warn.push('ошибка подсценария: ' + (e.message || e)); } }
+      return outs;
+    }
     if (k === 'report') { flush(ctx); return outs; }
     if (k === 'terminal' || k === 'start' || k === 'end') return k === 'end' ? [] : outs;
     if (k === 'decision') {
-      const c = ag.cond || inferCond(n.text || ''); let yes = c ? cond(c, ctx) : null;
-      if (yes == null) { yes = A && A.askYesNo ? await A.askYesNo(n.text || ag.text || 'Продолжить?') : true; if (yes == null) { ctx.stopped = true; return []; } }
+      const c = ag.ask ? null : (ag.cond || inferCond(n.text || '')); let yes = c ? cond(c, ctx, n) : null;
+      if (yes == null) { yes = A && A.askYesNo ? await A.askYesNo(interp(n.text || ag.text || 'Продолжить?', ctx)) : true; if (yes == null) { ctx.stopped = true; return []; } }
       const pick = outs.find(e => (yes ? YES : NO).test(String(e.label || '').trim()));
       if (!pick) { ctx.sections.push({ title: '', rows: [{ title: '↳ «' + (n.text || 'Условие') + '» — ' + (yes ? 'Да' : 'Нет') + ': ветки нет, сценарий завершён' }] }); return []; }
       return [pick];
@@ -127,25 +150,32 @@
     return outs;
   }
 
-  /* ───── запуск графа ───── */
-  async function run(graph, opts) {
-    opts = opts || {};
-    const ctx = { name: opts.name, now: new Date(), vars: {}, sections: [], alerts: [], steps: 0, visits: {}, warn: [], stopped: false, message: null };
-    const check = validate(graph); if (!check.ok) { ctx.warn = check.errors; ctx.error = check.errors[0]; const A = O.assistant; if (A && A.msgs) { A.msgs.push({ role: 'bot', text: 'Сценарий не запущен: ' + check.errors[0], cards: [], buttons: [] }); A.render && A.render(true); } return ctx; }
+  /* обход одного графа (подсценарии вызывают его рекурсивно с общим ctx: переменные и отчёт общие) */
+  async function walk(graph, ctx, opts, depth) {
     const nodes = new Map(graph.nodes.map(n => [n.id, n])), outs = {}, hasIn = new Set();
-    graph.edges.forEach(e => { (outs[e.from] = outs[e.from] || []).push(e); hasIn.add(e.to); });
+    (graph.edges || []).forEach(e => { (outs[e.from] = outs[e.from] || []).push(e); hasIn.add(e.to); });
     const start = graph.nodes.find(n => n.ag && n.ag.b === 'start') || graph.nodes.find(n => n.type === 'terminal' && !hasIn.has(n.id)) || graph.nodes.find(n => !hasIn.has(n.id)) || graph.nodes[0];
+    const prevV = ctx.visits, prevD = ctx.depth; ctx.visits = {}; ctx.depth = depth;
     const stack = [start.id];
     while (stack.length && !ctx.stopped) {
       if (++ctx.steps > MAX_STEPS) { ctx.warn.push('превышен лимит шагов (' + MAX_STEPS + ')'); break; }
       const n = nodes.get(stack.pop()); if (!n) continue;
       if ((ctx.visits[n.id] = (ctx.visits[n.id] || 0) + 1) > MAX_VISITS) { ctx.warn.push('цикл на блоке «' + (n.text || n.id) + '» остановлен'); continue; }
-      if (opts.onStep) { try { opts.onStep(n.id); } catch (e) { /* подсветка не критична */ } }
-      if (opts.delay) await new Promise(r => setTimeout(r, opts.delay));
+      if (opts.onStep && depth === 0) { try { opts.onStep(n.id); } catch (e) { /* подсветка не критична */ } }
+      if (opts.delay && depth === 0) await new Promise(r => setTimeout(r, opts.delay));
       let next;
       try { next = await exec(n, ctx, outs[n.id] || []); } catch (e) { ctx.warn.push('ошибка в блоке «' + (n.text || n.id) + '»: ' + (e.message || e)); ctx.sections.push({ title: '', rows: [{ title: 'Ошибка в блоке «' + (n.text || n.id) + '»', warn: true }] }); next = []; }
       for (let i = next.length - 1; i >= 0; i--) stack.push(next[i].to);
     }
+    ctx.visits = prevV; ctx.depth = prevD;
+  }
+
+  /* ───── запуск графа ───── */
+  async function run(graph, opts) {
+    opts = opts || {};
+    const ctx = { name: opts.name, now: new Date(), vars: Object.assign({}, opts.vars || {}), sections: [], alerts: [], steps: 0, visits: {}, depth: 0, warn: [], stopped: false, message: null };
+    const check = validate(graph); if (!check.ok) { ctx.warn = check.errors; ctx.error = check.errors[0]; const A = O.assistant; if (A && A.msgs) { A.msgs.push({ role: 'bot', text: 'Сценарий не запущен: ' + check.errors[0], cards: [], buttons: [] }); A.render && A.render(true); } return ctx; }
+    await walk(graph, ctx, opts, 0);
     if (ctx.warn.length) ctx.sections.push({ title: 'Предупреждения', rows: ctx.warn.map(w => ({ title: w, warn: true })) });
     flush(ctx);
     return ctx;

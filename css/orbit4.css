@@ -479,3 +479,10 @@ body.embed-tab #tab-flow.active {
 /* 7 плиток быстрых действий: на телефоне последняя (SOS) занимает всю строку */
 .o-quick>.o-qk:last-child:nth-child(3n+1){grid-column:1/-1;flex-direction:row;justify-content:center}
 @media (min-width:720px){.o-quick{grid-template-columns:repeat(auto-fit,minmax(96px,1fr))}.o-quick>.o-qk:last-child:nth-child(3n+1){grid-column:auto;flex-direction:column}}
+
+/* настройки → «Память и хранилище» */
+.st-bar{height:8px;border-radius:6px;background:rgba(127,127,127,.25);overflow:hidden;margin:6px 0}
+.st-bar i{display:block;height:100%;background:var(--accent,var(--o-accent,#7c5cff));transition:width .3s}
+.st-list{list-style:none;padding:0;margin:8px 0}
+.st-list li{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid rgba(127,127,127,.18);font-size:.9rem}
+.st-list li b{white-space:nowrap}

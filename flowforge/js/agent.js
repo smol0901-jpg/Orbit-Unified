@@ -12,10 +12,12 @@
     say: { type: 'process', text: 'Сообщение', color: '#f9e2af' }, cmd: { type: 'process', text: 'что дальше', color: '#89b4fa' },
     day: { type: 'process', text: 'Сегодня', color: '#94e2d5' }, tasks: { type: 'process', text: 'Задачи', color: '#94e2d5' }, plans: { type: 'process', text: 'Планы', color: '#94e2d5' },
     reminders: { type: 'process', text: 'Напоминания', color: '#94e2d5' }, edits: { type: 'process', text: 'Правки', color: '#94e2d5' },
+    ask: { type: 'process', text: 'Как настроение?', color: '#f5c2e7' }, set: { type: 'process', text: 'Запомнить', color: '#f5c2e7' }, sub: { type: 'process', text: 'Запустить сценарий', color: '#cba6f7' },
     report: { type: 'process', text: 'Показать отчёт', color: '#cba6f7' }, decision: { type: 'decision', text: 'Условие?', color: '#fab387' }
   };
   const CONDS = [['', 'Определить по тексту ромба'], ['ask', 'Спросить пользователя (Да/Нет)'], ['weekday:work', 'Сегодня будний день'], ['weekday:off', 'Сегодня выходной'], ['hw', 'Есть открытые задачи'],
-    ['overdue', 'Есть просроченное'], ['reminders', 'Есть активные напоминания'], ['meetings', 'Сегодня есть встречи'], ['time:after', 'Сейчас после времени…'], ['time:before', 'Сейчас до времени…']];
+    ['overdue', 'Есть просроченное'], ['reminders', 'Есть активные напоминания'], ['meetings', 'Сегодня есть встречи'], ['time:after', 'Сейчас после времени…'], ['time:before', 'Сейчас до времени…'],
+    ['count', 'Повторить N раз (петля назад по «Да»)'], ['var:yes', 'Ответ похож на «да»'], ['var:has', 'Ответ содержит…'], ['var:eq', 'Ответ равен…'], ['var:empty', 'Ответ пустой']];
   let on = false, running = false, built = false;
   const $a = s => document.querySelector(s);
 
@@ -41,7 +43,8 @@
     const sec = document.createElement('div'); sec.className = 'sec'; sec.id = 's-agent'; sec.hidden = true;
     sec.innerHTML = `<h4>Блок агента</h4><div class="row"><select id="agb"><option value="">Определить по тексту</option>${F.list().map(b => `<option value="${b.b}">${esc(b.label)}</option>`).join('')}</select></div>
       <input id="agt" placeholder="Заголовок раздела в отчёте (необязательно)">
-      <div id="agc" hidden><div class="row"><select id="agk">${CONDS.map(c => `<option value="${c[0]}">${esc(c[1])}</option>`).join('')}</select><input id="agtm" type="time" value="12:00" hidden></div></div>
+      <div id="agq" hidden><input id="agv" placeholder="Имя переменной (например: ответ)"><input id="agval" placeholder="Значение (можно {{переменную}})" hidden><select id="ags" hidden></select></div>
+      <div id="agc" hidden><div class="row"><select id="agk">${CONDS.map(c => `<option value="${c[0]}">${esc(c[1])}</option>`).join('')}</select><input id="agtm" type="time" value="12:00" hidden></div><div class="row"><input id="agx1" hidden><input id="agx2" hidden></div></div>
       <small id="agh"></small>`;
     const sn = $a('#s-node'); if (sn) sn.insertAdjacentElement('afterend', sec);
     wire();
@@ -78,10 +81,20 @@
     sec.hidden = !(on && one); if (!(on && one)) return;
     const ag = one.ag || null, b = ag ? ag.b : '';
     $a('#agb').value = b; $a('#agt').value = (ag && ag.title) || '';
-    const shown = b || inferAg(one).b, dec = shown === 'decision' || one.type === 'decision';
+    const shown = b || inferAg(one).b, dec = shown === 'decision' || one.type === 'decision', q = shown === 'ask' || shown === 'set' || shown === 'sub';
+    $a('#agq').hidden = !q; $a('#agv').hidden = shown === 'sub'; $a('#agval').hidden = shown !== 'set'; $a('#ags').hidden = shown !== 'sub';
+    if (q) { $a('#agv').value = (ag && ag.var) || ''; $a('#agval').value = (ag && ag.value) || ''; if (shown === 'sub') fillSubs(ag && ag.ref); }
     $a('#agc').hidden = !dec;
-    if (dec) { const c = ag && ag.cond, v = c ? (c.k === 'time' || c.k === 'weekday' ? c.k + ':' + c.v : c.k) : (ag && ag.ask ? 'ask' : ''); $a('#agk').value = CONDS.some(x => x[0] === v) ? v : ''; $a('#agtm').hidden = !/^time:/.test($a('#agk').value); if (c && c.at) $a('#agtm').value = c.at; }
-    const H = { cmd: 'Текст блока — команда агента, как в чате.', say: 'Текст блока попадёт в отчёт.', report: 'Выводит собранное сейчас (в конце сценария выводится само).', start: 'Начало сценария.', end: 'Конец ветки.', decision: 'Связи подпишите «Да» и «Нет».' };
+    if (dec) {
+      const c = ag && ag.cond; let v = '';
+      if (c) v = (c.k === 'time' || c.k === 'weekday' || c.k === 'var') ? c.k + ':' + c.v : c.k; else if (ag && ag.ask) v = 'ask';
+      $a('#agk').value = CONDS.some(x => x[0] === v) ? v : ''; const k = $a('#agk').value, isCount = k === 'count', isVar = /^var:/.test(k);
+      $a('#agtm').hidden = !/^time:/.test(k); if (c && c.at) $a('#agtm').value = c.at;
+      $a('#agx1').hidden = !(isCount || isVar); $a('#agx2').hidden = !/^var:(has|eq)$/.test(k);
+      $a('#agx1').placeholder = isCount ? 'Сколько раз повторить (число)' : 'Имя переменной (по умолчанию: ответ)'; $a('#agx2').placeholder = 'С чем сравнить';
+      $a('#agx1').value = c ? (isCount ? c.n : c.name || '') : ''; $a('#agx2').value = c && c.value ? c.value : '';
+    }
+    const H = { cmd: 'Текст блока — команда агента, как в чате. Можно {{переменные}}.', say: 'Текст блока попадёт в отчёт. Можно {{переменные}}.', ask: 'Текст блока — вопрос. Ответ пользователя сохраняется в переменную; дальше {{имя}} можно подставлять в тексты и команды.', set: 'Запоминает значение в переменной.', sub: 'Запускает другой сценарий; переменные и отчёт общие.', report: 'Выводит собранное сейчас (в конце сценария выводится само).', start: 'Начало сценария.', end: 'Конец ветки.', decision: 'Связи подпишите «Да» и «Нет». Для петли ведите «Да» назад к началу повтора.' };
     $a('#agh').textContent = H[shown] || (F.BLOCKS[shown] ? 'Встроенный блок: ' + F.BLOCKS[shown].hint + '.' : '');
   }
   function setBlock(v) {
@@ -93,8 +106,16 @@
   function setCond() {
     const n = sel.size === 1 && N([...sel][0]); if (!n) return;
     const v = $a('#agk').value, ag = n.ag = n.ag || { b: 'decision' }; delete ag.cond; delete ag.ask;
-    if (v === 'ask') ag.ask = true; else if (v) { const [k, x] = v.split(':'); ag.cond = { k }; if (x) ag.cond.v = x; if (k === 'time') ag.cond.at = $a('#agtm').value || '12:00'; }
-    $a('#agtm').hidden = !/^time:/.test(v); commit();
+    if (v === 'ask') ag.ask = true;
+    else if (v === 'count') ag.cond = { k: 'count', n: Math.max(1, Math.min(20, Math.round(+$a('#agx1').value) || 1)) };
+    else if (/^var:/.test(v)) ag.cond = { k: 'var', v: v.split(':')[1], name: ($a('#agx1').value || '').trim() || 'ответ', value: $a('#agx2').value };
+    else if (v) { const [k, x] = v.split(':'); ag.cond = { k }; if (x) ag.cond.v = x; if (k === 'time') ag.cond.at = $a('#agtm').value || '12:00'; }
+    syncInsp(); commit();
+  }
+  function fillSubs(cur) {
+    const me = S.agent && S.agent.scId, list = (O.scripts.list() || []).filter(s => s.id !== me && (s.graph || (s.steps && s.steps.length)));
+    $a('#ags').innerHTML = '<option value="">— выберите сценарий —</option>' + list.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
+    $a('#ags').value = cur || '';
   }
 
   /* ───── запуск и сохранение ───── */
@@ -138,6 +159,12 @@
     $a('#agb').onchange = e => setBlock(e.target.value);
     $a('#agt').oninput = e => { const n = sel.size === 1 && N([...sel][0]); if (!n) return; n.ag = n.ag || inferAg(n); if (e.target.value.trim()) n.ag.title = e.target.value.trim(); else delete n.ag.title; };
     $a('#agt').onchange = commit; $a('#agk').onchange = setCond; $a('#agtm').onchange = setCond;
+    $a('#agx1').onchange = setCond; $a('#agx2').onchange = setCond;
+    const cur = () => { const n = sel.size === 1 && N([...sel][0]); if (!n) return null; n.ag = n.ag || inferAg(n); return n; };
+    $a('#agv').oninput = e => { const n = cur(); if (!n) return; const v = e.target.value.trim(); if (v) n.ag.var = v; else delete n.ag.var; };
+    $a('#agval').oninput = e => { const n = cur(); if (!n) return; n.ag.value = e.target.value; };
+    $a('#agv').onchange = $a('#agval').onchange = commit;
+    $a('#ags').onchange = e => { const n = cur(); if (!n) return; const o = e.target.selectedOptions[0]; if (e.target.value) { n.ag.ref = e.target.value; n.text = o.textContent; dim(n); } else delete n.ag.ref; commit(); };
   }
   function open() { build(); on = true; $a('#agp').hidden = false; $a('#agBtn').classList.add('on'); fill(); syncInsp(); }
   function close() { on = false; if ($a('#agp')) $a('#agp').hidden = true; if ($a('#agBtn')) $a('#agBtn').classList.remove('on'); syncInsp(); }

@@ -66,6 +66,16 @@
     return list.find(s => s.trigger && s.trigger.kind === 'phrase' && s.trigger.text && P(s.trigger.text) === n) ||
       (m ? list.find(s => P(s.name) === q || P(s.name).startsWith(q)) : null) || null;
   }
+  /* найти сценарий по id или названию (для блока «Запустить сценарий») */
+  function find(ref) {
+    const P = x => N(x).replace(/[.,!?;:«»"'()]/g, '').replace(/[-–—_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return list.find(s => s.id === ref) || list.find(s => P(s.name) === P(ref)) || null;
+  }
+  /* по названию сценария: «Давай по быстрому» запускает сценарий с таким именем (если фраза не задана) */
+  function matchName(text) {
+    const P = x => N(x).replace(/[.,!?;:«»"'()]/g, '').replace(/[-–—_]+/g, ' ').replace(/\s+/g, ' ').trim(), n = P(text);
+    return n.length < 2 ? null : list.find(s => P(s.name) === n) || null;
+  }
   setInterval(() => {
     const d = new Date(), hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), di = (d.getDay() + 6) % 7;
     const key = d.toDateString() + hm; if (key === lastTick) return; lastTick = key;
@@ -121,7 +131,7 @@
           `<button class="sc-add" data-sc="new">＋ Новый сценарий</button><button class="sc-add" data-sc="pickscheme">📥 Из блок-схемы (FlowForge)…</button>` + (picker ? flowPicker() : '') + `<h4>Шаблоны</h4>` + (O.flow ? Object.keys(O.flow.TEMPLATES).map(k => `<button class="sc-tpl" data-sc="gtpl" data-id="${k}">🧩 ${esc(O.flow.TEMPLATES[k].name)}</button>`).join('') : '') + TEMPLATES.map((t, i) => `<button class="sc-tpl" data-sc="tpl" data-i="${i}">${esc(t.name)}</button>`).join('') + '</div>';
       } else {
         body.innerHTML = `<div class="sc-wrap">${skillsList()}<div class="sc-top"><button data-sc="back">← Назад</button><button class="pri" data-sc="save">Сохранить</button><button data-sc="test">▶ Тест</button></div>` +
-          `<input class="sc-in sc-name" data-sc="name" value="${esc(ed.name)}" placeholder="Название сценария"><div class="sc-trig">${trigHtml()}</div><div class="sc-start">● Старт</div><div class="sc-arr">↓</div>${flow(ed.steps, ['steps'])}<div class="sc-end">■ Конец</div></div>`;
+          `<input class="sc-in sc-name" data-sc="name" value="${esc(ed.name)}" placeholder="Название сценария"><div class="sc-trig">${trigHtml()}</div><small class="sc-hint">Сценарий всегда можно запустить и по названию, и фразой «запусти …».</small><div class="sc-start">● Старт</div><div class="sc-arr">↓</div>${flow(ed.steps, ['steps'])}<div class="sc-end">■ Конец</div></div>`;
       }
     };
     if (!body._sc) {
@@ -186,5 +196,5 @@
     else { sc = { id: x.id || uid(), name: x.name, trigger: x.trigger, graph: x.graph, src: x.src, steps: [] }; list.push(sc); }
     save(); return sc.id;
   }
-  O.scripts = { panel, match, run, list: () => list, templates: TEMPLATES, saveGraph };
+  O.scripts = { panel, match, matchName, find, run, list: () => list, templates: TEMPLATES, saveGraph };
 })();

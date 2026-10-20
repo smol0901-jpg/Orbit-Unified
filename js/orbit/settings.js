@@ -99,6 +99,11 @@
       { t: 'time', k: 'quietFrom', label: 'Тихие часы с' }, { t: 'time', k: 'quietTo', label: 'до' },
       { t: 'note', text: 'Уведомления приходят, пока приложение открыто или установлено и не выгружено из памяти. Для гарантированных push нужен сервер.' },
       { t: 'btn', id: 'test-notify', label: 'Проверить уведомление' }] },
+    { id: 'storage', title: 'Память и хранилище', icon: 'refresh', items: [
+      { t: 'storage' },
+      { t: 'toggle', k: 'storageCap', on: true, off: false, label: 'Ограничить объём данных Контура' },
+      { t: 'range', k: 'storageLimitMB', label: 'Лимит данных', min: 5, max: 500, step: 5, unit: ' МБ', hint: 'При превышении Контур сам удаляет второстепенное: старые копии, старую переписку, историю калькулятора. Встречи, задачи, контакты и сценарии не удаляются никогда.' },
+      { t: 'storageact' }] },
     { id: 'data', title: 'Данные и копии', icon: 'refresh', items: [{ t: 'toggle', k: 'autoBackup', label: 'Автокопия раз в сутки (последние 5)' }, { t: 'snaps' }] },
     { id: 'about', title: 'О приложении', icon: 'info', items: [{ t: 'about' }] }
   ];
@@ -147,6 +152,8 @@
       case 'widgets': return `<div class="o-set"><label>Блоки главного экрана</label><small>Включайте нужные и меняйте порядок стрелками</small><ul class="o-wl">${O.widgetList().map((w, i, a) => `<li class="${w.on ? '' : 'off'}"><label class="o-sw"><input type="checkbox" data-sw="toggle:${w.id}"${w.on ? ' checked' : ''}><i></i><span>${esc(w.name)}</span></label><button class="o-ib" data-sw="up:${w.id}" ${i === 0 ? 'disabled' : ''} aria-label="Выше">${ic('chevD', 16)}</button><button class="o-ib" data-sw="down:${w.id}" ${i === a.length - 1 ? 'disabled' : ''} aria-label="Ниже">${ic('chevD', 16)}</button></li>`).join('')}</ul><button class="o-chip" data-sact="widgets-reset">Сбросить порядок</button></div>`;
       case 'agentmem': { const hb = O.habits.size(); return `<div class="o-set"><small>Привычек записано: ${hb}. Данные хранятся только на этом устройстве.</small><div class="o-segs"><button class="o-chip" data-sact="habits-clear">Забыть привычки</button><button class="o-chip" data-sact="agent-mem">Что помнит агент</button></div></div>`; }
       case 'snaps': { const l = O.backup.list(); return `<div class="o-set"><div class="o-segs"><button class="o-btn ghost sm" data-sact="snap-now">Сделать копию</button><button class="o-btn ghost sm" data-sact="export-all">Скачать всё (JSON)</button><button class="o-btn ghost sm" data-sact="import-all">Импорт</button></div><ul class="o-snaps">${l.map((x, i) => `<li><span>${new Date(x.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc(x.label)}</span><button class="o-chip" data-sact="snap-restore:${i}">Вернуть</button></li>`).join('') || '<li class="o-muted">Копий пока нет</li>'}</ul><button class="o-link danger" data-sact="reset">Сбросить все данные…</button></div>`; }
+      case 'storage': return O.storage ? O.storage.html() : '';
+      case 'storageact': return O.storage ? O.storage.actions() : '';
       case 'about': { const b = O.brand(); return `<div class="o-about"><span data-brand-logo="54"></span><div><b>${esc(b.name)}</b> <em>v${C().version}</em><div class="o-muted">${esc(b.tag)}</div></div></div><div class="o-segs">${O.canInstall && O.canInstall() ? `<button class="o-btn" data-sact="install">${ic('download', 16)} Установить</button>` : ''}<button class="o-btn ghost" data-sact="update">${ic('refresh', 16)} Проверить обновление</button></div><p class="o-muted">Горячие клавиши: <kbd>Ctrl</kbd>+<kbd>K</kbd> — агент, <kbd>1</kbd>–<kbd>5</kbd> — разделы (на ПК).</p>`; }
     }
     return '';
@@ -167,6 +174,7 @@
   function set(k, v) { const s = S(); s.settings[k] = v; C().save(); C().applyTheme(); }
   async function sact(a, p) {
     const core = C(), s = S();
+    if (a.startsWith('st-') && O.storage) return O.storage.act(a, p);
     if (a === 'brand') { set('brand', p); O.renderSettings(); core.toast('Бренд: ' + O.brands[p].name); }
     else if (a === 'widgets-reset') { set('widgets', null); O.renderSettings(); }
     else if (a === 'habits-clear') { O.habits.clear(); core.toast('Привычки очищены'); O.renderSettings(); }

@@ -86,6 +86,9 @@
   // 00) сценарии пользователя (фраза-триггер или «запусти …»)
   on(/./, (t) => { const sc = O.scripts && O.scripts.match(t); if (!sc) return null; O.scripts.run(sc); return R('Запускаю сценарий «' + sc.name + '».'); }, 'script');
 
+  // 00б) сценарий по своему названию («Давай по быстрому»): самый последний шанс перед «не понял», чтобы не перебивать встроенные команды
+  on(/./, (t) => { const sc = O.scripts && O.scripts.matchName && O.scripts.matchName(t); if (!sc) return null; O.scripts.run(sc); return R('Запускаю сценарий «' + sc.name + '».'); }, 'script-name');
+
   // 0) экстренное
   on(/(^|\s)(sos|опасн|экстренн|скорую|полици[юя]|заблудил|потерял(ся|ась)|мне страшно|на помощь)/, () => {
     const s = S(), num = s.settings.sosNumber || '112', em = s.people.filter(p => p.phone && p.emergency);
@@ -659,7 +662,7 @@
 
   // порядок: сначала сценарии/SOS и ТОЧНЫЕ команды-изменения, потом общие «справочные» правила, последним — обучение алиасам
   const PRI = ['script', 'sos', 'mycmds', 'favcall', 'note-wizard', 'task-ask', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
-  const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
+  const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : n === 'script-name' ? 998 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
 
 
   /* ───── горизонтальная прокрутка подсказок на ПК: колесо, перетаскивание, стрелки ───── */
@@ -961,11 +964,21 @@
     return r;
   }
 
+  /* ───── API хранилища (js/orbit/storage.js): усечь/очистить историю чата ───── */
+  A.trimHistory = keep => { const sz = () => JSON.stringify(mem.msgs || []).length * 2, before = sz(); if ((mem.msgs || []).length <= keep && A.msgs.length <= keep) return 0; mem.msgs = (mem.msgs || []).slice(-Math.max(0, keep)); A.msgs = A.msgs.slice(-Math.max(0, keep)); saveMem(); try { A.render(false); } catch (e) { /* не критично */ } return Math.max(0, before - sz()); };
+  A.clearChat = () => { mem.msgs = []; A.msgs = []; saveMem(); try { A.render(false); } catch (e) { /* не критично */ } };
+
   /* ───── API для сценариев-графов (js/orbit/flow.js) ───── */
   /* выполнить команду «тихо»: без пузыря пользователя, ответы возвращаются, а не выводятся */
   A.quiet = async function (text) { try { const r = await understandAsync(spokenMath(String(text || ''))); return r ? [r] : []; } catch (e) { console.error('quiet', e); return []; } };
   A.knows = text => { try { return !!looksLikeCommand(text); } catch (e) { return false; } };
   /* вопрос «Да/Нет» посреди сценария: ждёт ответ пользователя (кнопка, текст, голос); null — отменил/не ответил */
+  /* вопрос со свободным ответом посреди сценария: следующее сообщение пользователя (текст или голос) — это ответ; null — отмена */
+  A.askText = q => new Promise(resolve => {
+    try { const core = O.core && O.core(); if (core) { core.switchTab('agent'); A.panel = 'chat'; } } catch (e) { /* не критично */ }
+    push(R(q, { buttons: [cancelBtn()] })); A.render(true);
+    focusSet('ask-text', {}, t => { focusClear(); resolve(t); return R('Принято ✓'); }, () => resolve(null));
+  });
   A.askYesNo = q => new Promise(resolve => {
     try { const core = O.core && O.core(); if (core) { core.switchTab('agent'); A.panel = 'chat'; } } catch (e) { /* не критично */ }
     push(R(q, { buttons: [btn('Да', 'cmd:да'), btn('Нет', 'cmd:нет'), cancelBtn()] })); A.render(true);
@@ -1542,6 +1555,9 @@
     mic.onclick = () => { if (rec) { rec.stop(); return; } rec = new SR(); rec.lang = 'ru-RU'; rec.interimResults = false; mic.classList.add('on'); rec.onresult = e => { const v = e.results[0][0].transcript; $('ag-in').value = ''; A.send(v); }; rec.onend = rec.onerror = () => { mic.classList.remove('on'); rec = null; }; try { rec.start(); } catch (e) { mic.classList.remove('on'); rec = null; } };
   }
   A.R = R; A.btn = btn;
-  { const r0 = A.render; A.render = function () { const x = r0.apply(this, arguments); try { O.inline && O.inline.sync(); } catch (e) {} return x; }; }
+  { const r0 = A.render; A.render = function (scroll) { const x = r0.apply(this, arguments); try { O.inline && O.inline.sync(); } catch (e) {}
+    /* чат всегда открывается внизу: вкладка может стать видимой позже рендера, поэтому прокручиваем ещё и с задержкой */
+    if (scroll !== false && (A.panel || 'chat') === 'chat') [0, 80, 300].forEach(d => setTimeout(() => { const ms = $('ag-msgs'); if (ms) ms.scrollTop = ms.scrollHeight; }, d));
+    return x; }; }
   O.motion = () => document.documentElement.getAttribute('data-motion') || 'full';
 })();

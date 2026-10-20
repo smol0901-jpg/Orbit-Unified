@@ -573,6 +573,61 @@
     eq(S.list().length, n0 + 1); eq(S.list()[S.list().length - 1].name, 'A2');
   });
 
+  test('Сценарии-графы', 'Сценарий запускается по своему названию, даже если запуск «вручную»', async () => {
+    const w = await seeded(); await tab(w, 'agent');
+    w.Orbit.scripts.saveGraph({ name: 'Давай по быстрому', trigger: { kind: 'manual' }, graph: w.Orbit.flow.template('day-report') });
+    let r = await ask(w, 'Давай по быстрому'); has(r, /Запускаю сценарий/);
+    r = await ask(w, 'что дальше'); ok(!/Запускаю сценарий/.test(r.text), 'встроенная команда перехвачена сценарием');
+    eq(errs, [], 'ошибки выполнения');
+  });
+
+  test('Сценарии-графы', 'Переменные: «Спросить пользователя» → {{ответ}} → условие по ответу', async () => {
+    const w = await seeded(); await tab(w, 'agent'); const F = w.Orbit.flow;
+    const g = { nodes: [{ id: 's', type: 'terminal', text: 'Начало', ag: { b: 'start' } }, { id: 'q', type: 'process', text: 'Как настроение?', ag: { b: 'ask', var: 'настроение' } },
+      { id: 'd', type: 'decision', text: 'Плохо?', ag: { b: 'decision', cond: { k: 'var', v: 'has', name: 'настроение', value: 'плох' } } },
+      { id: 'y', type: 'process', text: 'Держись, {{настроение}}!', ag: { b: 'say' } }, { id: 'n', type: 'process', text: 'Отлично: {{настроение}}', ag: { b: 'say' } }],
+      edges: [{ from: 's', to: 'q' }, { from: 'q', to: 'd' }, { from: 'd', to: 'y', label: 'Да' }, { from: 'd', to: 'n', label: 'Нет' }] };
+    const p = F.run(g, { name: 'Настроение' }); await sleep(200);
+    const r = await ask(w, 'очень плохо'); has(r, /Принято/);
+    const ctx = await p; ok(ctx.message && ctx.message.cards.join('').includes('Держись, очень плохо'), 'ответ не попал в переменную или ветка выбрана неверно');
+    eq(errs, [], 'ошибки выполнения');
+  });
+  test('Сценарии-графы', 'Петля «повторить N раз» и защита от рекурсии подсценариев', async () => {
+    const w = await seeded(); const F = w.Orbit.flow;
+    const loop = { nodes: [{ id: 's', type: 'terminal', text: 'Начало', ag: { b: 'start' } }, { id: 'a', type: 'process', text: 'Шаг', ag: { b: 'say' } }, { id: 'd', type: 'decision', text: 'Ещё?', ag: { b: 'decision', cond: { k: 'count', n: 2 } } }],
+      edges: [{ from: 's', to: 'a' }, { from: 'a', to: 'd' }, { from: 'd', to: 'a', label: 'Да' }] };
+    let ctx = await F.run(loop, { name: 'Петля' }); eq((ctx.message.cards.join('').match(/Шаг/g) || []).length, 3);
+    w.Orbit.scripts.saveGraph({ name: 'Рекурсия', trigger: { kind: 'manual' }, graph: { nodes: [{ id: 's', type: 'terminal', text: 'Н', ag: { b: 'start' } }, { id: 'u', type: 'process', text: 'Рекурсия', ag: { b: 'sub', ref: 'Рекурсия' } }], edges: [{ from: 's', to: 'u' }] } });
+    ctx = await F.run(w.Orbit.scripts.find('Рекурсия').graph, { name: 'Рек' }); ok(ctx.warn.some(x => /вложенност/.test(x)), 'рекурсия не остановлена');
+  });
+  test('Сценарии-графы', 'Подсценарий видит переменные внешнего сценария и дописывает в общий отчёт', async () => {
+    const w = await seeded(); const F = w.Orbit.flow;
+    w.Orbit.scripts.saveGraph({ name: 'Внутренний', trigger: { kind: 'manual' }, graph: { nodes: [{ id: 's', type: 'terminal', text: 'Н', ag: { b: 'start' } }, { id: 'a', type: 'process', text: 'Привет, {{имя}}', ag: { b: 'say' } }], edges: [{ from: 's', to: 'a' }] } });
+    const outer = { nodes: [{ id: 's', type: 'terminal', text: 'Н', ag: { b: 'start' } }, { id: 'v', type: 'process', text: 'x', ag: { b: 'set', var: 'имя', value: 'Александр' } }, { id: 'u', type: 'process', text: 'Внутренний', ag: { b: 'sub', ref: 'Внутренний' } }], edges: [{ from: 's', to: 'v' }, { from: 'v', to: 'u' }] };
+    const ctx = await F.run(outer, { name: 'Внешний' }); ok(ctx.message.cards.join('').includes('Привет, Александр'), 'подсценарий не увидел переменную');
+  });
+
+  /* ═════════════ 13f. ПАМЯТЬ И ХРАНИЛИЩЕ ═════════════ */
+  test('Память', 'Измерение: занятое место по группам и итог по данным Контура', async () => {
+    const w = await seeded(); const S = w.Orbit.storage; ok(S && S.measure, 'storage.js не загружен');
+    const m = await S.measure(); ok(m.own > 0 && m.groups.some(g => g.id === 'main' && g.bytes > 0), 'основные данные не посчитаны');
+    await S.refresh(true); ok(S.html().includes('Занято данными'), 'блок статистики не отрисован');
+  });
+  test('Память', 'Лимит: копии и старая переписка усекаются, основные данные целы, чужие ключи не трогаются', async () => {
+    const w = await seeded(); const S = w.Orbit.storage, ls = w.localStorage;
+    ls.setItem('orbit-snapshots-v1', JSON.stringify(Array.from({ length: 5 }, (_, i) => ({ at: i, label: 't', data: { x: 'y'.repeat(100000) } }))));
+    ls.setItem('stranger-app', 'z'.repeat(1000)); const main0 = ls.getItem('orbit-planner-v3');
+    const r = await S.enforce({ limit: 300 * 1024, quiet: true });
+    ok(JSON.parse(ls.getItem('orbit-snapshots-v1') || '[]').length <= 3, 'копии не усечены'); ok(r.steps.length > 0, 'автоочистка не сработала');
+    eq(ls.getItem('orbit-planner-v3'), main0, 'основные данные изменились!'); eq(ls.getItem('stranger-app').length, 1000);
+    ls.removeItem('stranger-app'); eq(errs, [], 'ошибки выполнения');
+  });
+  test('Память', 'Без лимита автоочистка ничего не удаляет', async () => {
+    const w = await seeded(); const S = w.Orbit.storage;
+    w.localStorage.setItem('orbit-snapshots-v1', JSON.stringify(Array.from({ length: 5 }, (_, i) => ({ at: i, label: 't', data: { x: 'y'.repeat(50000) } }))));
+    const r = await S.enforce({ quiet: true }); eq(r.steps.length, 0); eq(JSON.parse(w.localStorage.getItem('orbit-snapshots-v1')).length, 5);
+  });
+
   /* ═════════════ 14. КАЛЬКУЛЯТОР ПРЯМО В ЧАТЕ ═════════════ */
   test('Калькулятор в чате', '«калькулятор» открывает панель в чате и не уводит на вкладку', async () => {
     const w = await seeded(); await tab(w, 'agent'); await ask(w, 'калькулятор'); await sleep(300);
