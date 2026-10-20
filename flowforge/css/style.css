@@ -236,3 +236,17 @@ dialog.sheet.wide{width:min(720px,100vw)}
   .agent-panel{width:100vw;left:0;right:0}
   body.agent-panel-open #agentFab{display:none}
 }
+
+/* режим «Сценарий агента» (внутри Контура) */
+#agp{position:absolute;top:104px;left:10px;width:min(360px,calc(100% - 20px));max-height:70%;overflow:auto;background:rgba(24,24,37,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid var(--l2);border-radius:12px;padding:10px;z-index:5;box-shadow:0 8px 30px #0008}
+#agp[hidden]{display:none}
+#agp input,#agp select{width:100%;margin:4px 0}
+#agp h4{margin:10px 0 6px;font-size:.8rem;opacity:.8}
+#agp small{display:block;margin:6px 0;opacity:.8;line-height:1.35}
+#agp .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.agpal{display:flex;flex-wrap:wrap;gap:6px}
+.agpal button{padding:6px 10px;border-radius:10px;border:1px solid var(--l2);background:var(--s2,transparent);font-size:.82rem}
+.agpal button[data-c=agent]{border-color:#89b4fa}.agpal button[data-c=data]{border-color:#94e2d5}.agpal button[data-c=flow]{border-color:#f9e2af}
+#agBtn.on{background:#89b4fa33}
+@media(max-width:700px){#agp{top:100px}}
+body.vw #agp{display:none!important}

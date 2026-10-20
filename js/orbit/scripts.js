@@ -14,10 +14,18 @@
       { t: 'cmd', text: 'я освободился' }, { t: 'if', cond: { k: 'hw', v: '' }, then: [{ t: 'cmd', text: 'что задано' }, { t: 'remind', min: 60, text: 'сделать задачу' }], else: [{ t: 'say', text: 'Задач нет — свободный вечер.' }] }] },
     { name: 'Вечер', trigger: { kind: 'time', at: '20:30', days: [0, 1, 2, 3, 4, 6] }, steps: [{ t: 'cmd', text: 'что взять завтра' }, { t: 'cmd', text: 'расписание на завтра' }] }
   ];
-  let list = [], ed = null, lastTick = '', adding = '';
+  let list = [], ed = null, lastTick = '', adding = '', picker = false, delId = '', notice = '';
   const load = () => { try { list = JSON.parse(localStorage.getItem(KEY) || 'null') || []; } catch (e) { list = []; } };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(list)); } catch (e) {} };
   load();
+  /* шаблоны-графы (например «Отчёт дня») ставятся один раз; удалённый не возвращается */
+  (function seedFlow() {
+    try {
+      if (!O.flow || localStorage.getItem('orbit-flow-seed-1')) return;
+      Object.keys(O.flow.TEMPLATES).forEach(k => { const t = O.flow.TEMPLATES[k]; if (!list.some(x => x.id === 'tpl-' + k)) list.push({ id: 'tpl-' + k, name: t.name, trigger: t.trigger, graph: t.build(), steps: [] }); });
+      localStorage.setItem('orbit-flow-seed-1', '1'); save();
+    } catch (e) { /* не критично */ }
+  })();
   const st = () => (O.core ? O.core().state : {}) || {};
 
   /* ── условия ── */
@@ -45,15 +53,18 @@
   async function run(sc) {
     const A = O.assistant; if (!A || !sc) return;
     A.panel = 'chat';
-    A.msgs.push({ role: 'bot', text: '▶ Сценарий «' + sc.name + '»', cards: [], buttons: [] });
-    try { await runSteps(sc.steps, A); } catch (e) { A.msgs.push({ role: 'bot', text: 'Сценарий остановлен: ' + (e.message || e), cards: [], buttons: [] }); }
+    if (!sc.graph) A.msgs.push({ role: 'bot', text: '▶ Сценарий «' + sc.name + '»', cards: [], buttons: [] });
+    try { if (sc.graph && O.flow) await O.flow.run(sc.graph, { name: sc.name }); else await runSteps(sc.steps, A); } catch (e) { A.msgs.push({ role: 'bot', text: 'Сценарий остановлен: ' + (e.message || e), cards: [], buttons: [] }); }
     A.render(true);
   }
   function match(text) {
-    const n = N(text).trim(), m = n.match(/^(?:запусти|выполни|сценарий|включи сценарий)\s+(.+)$/);
+    const ALIAS = { 'отчет на сегодня': 'отчет дня', 'мой отчет': 'отчет дня', 'утренний отчет': 'отчет дня', 'дай отчет': 'отчет дня', 'сводка дня': 'отчет дня', 'сводка': 'отчет дня' };
+    /* дефис, пробел, регистр и знаки препинания не важны: «Схема-7» = «схема 7» = «Схема 7.» */
+    const P = x => N(x).replace(/[.,!?;:«»"'()]/g, '').replace(/[-–—_]+/g, ' ').replace(/\s+/g, ' ').trim();
+    const n0 = P(text), n = ALIAS[n0] || n0, m = n.match(/^(?:запусти|выполни|сценарий|включи сценарий)\s+(.+)$/);
     const q = m ? m[1] : n;
-    return list.find(s => s.trigger && s.trigger.kind === 'phrase' && N(s.trigger.text) === n) ||
-      (m ? list.find(s => N(s.name) === q || N(s.name).startsWith(q)) : null) || null;
+    return list.find(s => s.trigger && s.trigger.kind === 'phrase' && s.trigger.text && P(s.trigger.text) === n) ||
+      (m ? list.find(s => P(s.name) === q || P(s.name).startsWith(q)) : null) || null;
   }
   setInterval(() => {
     const d = new Date(), hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'), di = (d.getDay() + 6) % 7;
@@ -97,12 +108,17 @@
     if (t.kind === 'time') return sel + `<input class="sc-in" type="time" data-sc="trig" data-c="at" value="${esc(t.at || '07:30')}"><div class="sc-days">${DAYS.map((d, i) => `<button type="button" class="${(t.days || []).includes(i) ? 'on' : ''}" data-sc="day" data-d="${i}">${d}</button>`).join('')}</div><small>Сработает, пока приложение открыто.</small>`;
     return sel;
   }
+  function flowPicker() {
+    const sch = O.flow ? O.flow.schemes() : [];
+    return '<div class="sc-pick"><p class="sc-hint">Выберите схему — она станет сценарием (блок-процесс → команда или сообщение, ромб → вопрос «Да/Нет»).</p>' +
+      (sch.length ? sch.map(p => `<button class="sc-tpl" data-sc="imp" data-id="${esc(p.id)}">${esc(p.name)} · ${p.doc.nodes.length} бл.</button>`).join('') : '<p class="sc-hint">Схем пока нет. Нарисуйте её в разделе блок-схем (FlowForge) и вернитесь сюда.</p>') + '</div>';
+  }
   function panel(body) {
     const draw = () => {
       if (!ed) {
-        body.innerHTML = `<div class="sc-wrap">${skillsList()}<p class="sc-hint">Сценарий — блок-схема из команд агента. Запускается кнопкой, фразой или по времени.</p>` +
-          (list.length ? list.map(s => `<div class="sc-item"><div><b>${esc(s.name)}</b><small>${s.trigger && s.trigger.kind === 'phrase' ? '«' + esc(s.trigger.text) + '»' : s.trigger && s.trigger.kind === 'time' ? '⏰ ' + esc(s.trigger.at) : 'вручную'} · ${s.steps.length} бл.</small></div><span><button data-sc="run" data-id="${s.id}">▶</button><button data-sc="edit" data-id="${s.id}">✎</button><button data-sc="rm" data-id="${s.id}">✕</button></span></div>`).join('') : '<p class="sc-hint">Пока пусто — создай свой или возьми шаблон.</p>') +
-          `<button class="sc-add" data-sc="new">＋ Новый сценарий</button><h4>Шаблоны</h4>` + TEMPLATES.map((t, i) => `<button class="sc-tpl" data-sc="tpl" data-i="${i}">${esc(t.name)}</button>`).join('') + '</div>';
+        body.innerHTML = `<div class="sc-wrap">${skillsList()}${notice ? '<p class="sc-hint" style="color:#e5484d">' + esc(notice) + '</p>' : ''}<p class="sc-hint">Сценарий — блок-схема из команд агента. Запускается кнопкой, фразой или по времени.</p>` +
+          (list.length ? list.map(s => `<div class="sc-item"><div><b>${esc(s.name)}</b><small>${s.trigger && s.trigger.kind === 'phrase' ? '«' + esc(s.trigger.text) + '»' : s.trigger && s.trigger.kind === 'time' ? '⏰ ' + esc(s.trigger.at) : 'вручную'} · ${s.graph ? '🧩 схема · ' + s.graph.nodes.length : (s.steps || []).length} бл.</small></div><span><button data-sc="run" data-id="${s.id}">▶</button><button data-sc="edit" data-id="${s.id}">✎</button>${delId === s.id ? `<button data-sc="rm" data-id="${s.id}" style="background:#e5484d;color:#fff;width:auto;padding:0 12px">Удалить?</button>` : `<button data-sc="rm" data-id="${s.id}" title="Удалить">✕</button>`}</span></div>`).join('') : '<p class="sc-hint">Пока пусто — создай свой или возьми шаблон.</p>') +
+          `<button class="sc-add" data-sc="new">＋ Новый сценарий</button><button class="sc-add" data-sc="pickscheme">📥 Из блок-схемы (FlowForge)…</button>` + (picker ? flowPicker() : '') + `<h4>Шаблоны</h4>` + (O.flow ? Object.keys(O.flow.TEMPLATES).map(k => `<button class="sc-tpl" data-sc="gtpl" data-id="${k}">🧩 ${esc(O.flow.TEMPLATES[k].name)}</button>`).join('') : '') + TEMPLATES.map((t, i) => `<button class="sc-tpl" data-sc="tpl" data-i="${i}">${esc(t.name)}</button>`).join('') + '</div>';
       } else {
         body.innerHTML = `<div class="sc-wrap">${skillsList()}<div class="sc-top"><button data-sc="back">← Назад</button><button class="pri" data-sc="save">Сохранить</button><button data-sc="test">▶ Тест</button></div>` +
           `<input class="sc-in sc-name" data-sc="name" value="${esc(ed.name)}" placeholder="Название сценария"><div class="sc-trig">${trigHtml()}</div><div class="sc-start">● Старт</div><div class="sc-arr">↓</div>${flow(ed.steps, ['steps'])}<div class="sc-end">■ Конец</div></div>`;
@@ -127,9 +143,24 @@
         const a = b.dataset.sc, id = b.dataset.id;
         if (a === 'new') ed = { id: uid(), name: 'Новый сценарий', trigger: { kind: 'manual' }, steps: [] };
         else if (a === 'tpl') { const t = JSON.parse(JSON.stringify(TEMPLATES[+b.dataset.i])); ed = Object.assign({ id: uid() }, t); }
-        else if (a === 'edit') ed = JSON.parse(JSON.stringify(list.find(s => s.id === id)));
+        else if (a === 'edit') { const sc0 = list.find(s => s.id === id); if (sc0 && sc0.graph && O.flow) { O.flow.openInFlowForge(sc0.graph, sc0.name, { scId: sc0.id, name: sc0.name, trigger: sc0.trigger }); return; } ed = JSON.parse(JSON.stringify(sc0)); }
+        else if (a === 'pickscheme') picker = !picker;
+        else if (a === 'gtpl') { const t = O.flow.TEMPLATES[id]; if (t) { list.push({ id: uid(), name: t.name, trigger: JSON.parse(JSON.stringify(t.trigger)), graph: t.build(), steps: [] }); save(); } }
+        else if (a === 'imp') {
+          const p = O.flow.schemes().find(x => x.id === id); if (!p) return;
+          const g = O.flow.fromScheme(p.doc, p.name), chk = O.flow.validate(g);
+          if (!chk.ok) { notice = 'Схему нельзя превратить в сценарий: ' + chk.errors[0]; setTimeout(() => { notice = ''; draw(); }, 6000); }
+          else {
+            const ex = list.find(s => s.src === p.id);          // эта схема уже импортирована — обновляем, а не плодим копии
+            if (ex) { ex.graph = g; ex.name = p.name; } else list.push({ id: uid(), name: p.name, trigger: { kind: 'manual' }, graph: g, src: p.id, steps: [] });
+            save(); picker = false;
+          }
+        }
         else if (a === 'run') { run(list.find(s => s.id === id)); return; }
-        else if (a === 'rm') { if (confirm('Удалить сценарий?')) { list = list.filter(s => s.id !== id); save(); } }
+        else if (a === 'rm') {   /* два нажатия: ✕ → «Удалить?» (без confirm(): во встроенных браузерах он может молча не работать) */
+          if (delId === id) { list = list.filter(s => s.id !== id); delId = ''; save(); }
+          else { delId = id; setTimeout(() => { if (delId === id) { delId = ''; draw(); } }, 4000); }
+        }
         else if (a === 'back') ed = null;
         else if (a === 'save') { const i = list.findIndex(s => s.id === ed.id); if (i < 0) list.push(ed); else list[i] = ed; save(); ed = null; }
         else if (a === 'test') { run(JSON.parse(JSON.stringify(ed))); return; }
@@ -148,5 +179,12 @@
     }
     draw();
   }
-  O.scripts = { panel, match, run, list: () => list, templates: TEMPLATES };
+  /* сохранить сценарий-схему из FlowForge: обновляет по id или создаёт новый; возвращает id */
+  function saveGraph(x) {
+    let sc = (x.id && list.find(s => s.id === x.id)) || (x.src && list.find(s => s.src === x.src)) || null;
+    if (sc) { sc.name = x.name; sc.trigger = x.trigger; sc.graph = x.graph; if (x.src && !sc.src) sc.src = x.src; }
+    else { sc = { id: x.id || uid(), name: x.name, trigger: x.trigger, graph: x.graph, src: x.src, steps: [] }; list.push(sc); }
+    save(); return sc.id;
+  }
+  O.scripts = { panel, match, run, list: () => list, templates: TEMPLATES, saveGraph };
 })();

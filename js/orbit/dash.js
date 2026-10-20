@@ -88,7 +88,7 @@
   };
 
   W.quick = () => {
-    const tiles = [['free:0', 'bus', 'Я освободился', 'hot'], ['hw:new', 'plus', 'Добавить задачу'], ['tab:contacts', 'phone', 'Позвонить'], ['note-new', 'note', 'Заметка'], ['tab:share', 'share', 'Поделиться'], ['tab:calc', 'calc', 'Калькулятор'], ['sos', 'sos', 'SOS', 'sos']];
+    const tiles = [['free:0', 'bus', 'Я освободился', 'hot'], ['hw:new', 'plus', 'Добавить задачу'], ['tab:contacts', 'phone', 'Позвонить'], ['note-new', 'note', 'Заметка'], ['tab:share', 'share', 'Поделиться'], ['tab:calc', 'calc', 'Калькулятор'], ['cmd:отчёт дня', 'sparkle', 'Отчёт дня'], ['sos', 'sos', 'SOS', 'sos']];
     const sos = S().settings.sosEnabled !== false;
     return `<div class="o-quick">${tiles.filter(t => t[0] !== 'sos' || sos).map(t => `<button class="o-qk ${t[3] || ''}" data-act="${t[0]}">${ic(t[1], 22)}<span>${t[2]}</span></button>`).join('')}</div>`;
   };

@@ -514,6 +514,65 @@
     const r = await ask(w, 'напомни завтра в 9 позвонить Ивану'); has(r, /09:00/);
   });
 
+  /* ═════════════ 13e. СЦЕНАРИИ-ГРАФЫ ═════════════ */
+  test('Сценарии-графы', 'Шаблон «Отчёт дня» собирается одним сообщением со всеми разделами', async () => {
+    const w = await seeded(); await tab(w, 'agent'); const F = w.Orbit.flow; ok(F && F.run, 'flow.js не загружен');
+    const ctx = await F.run(F.template('day-report'), { name: 'Отчёт дня' });
+    ok(ctx.message, 'отчёт не выведен'); const html = ctx.message.cards.join('');
+    for (const t of ['Сегодня', 'Задачи', 'Планы', 'Напоминания', 'Маршруты', 'Правки агента']) ok(html.includes(t), 'нет раздела «' + t + '»');
+    eq(ctx.warn, [], 'предупреждения'); eq(errs, [], 'ошибки выполнения');
+  });
+  test('Сценарии-графы', 'Сценарий «Отчёт дня» установлен по умолчанию и запускается фразой', async () => {
+    const w = await seeded(); await tab(w, 'agent');
+    ok(w.Orbit.scripts.list().some(s => s.graph && /отч[её]т дня/i.test(s.name)), 'сценарий «Отчёт дня» не установлен');
+    const r = await ask(w, 'отчёт дня'); has(r, /Запускаю сценарий/);
+    await sleep(1200); const m = w.Orbit.assistant.msgs; ok(m.length && /Отчёт дня/.test(m[m.length - 1].text), 'отчёт не появился в чате');
+    eq(errs, [], 'ошибки выполнения');
+  });
+  test('Сценарии-графы', 'Схема FlowForge → сценарий: блоки-фразы, ромб «Да/Нет», защита от цикла', async () => {
+    const w = await seeded(); const F = w.Orbit.flow;
+    const g = F.fromScheme({ nodes: [{ id: 'a', type: 'terminal', text: 'Начало' }, { id: 'b', type: 'process', text: 'что дальше' }, { id: 'c', type: 'decision', text: 'Сегодня выходной?' }, { id: 'd', type: 'process', text: 'Отдых!' }, { id: 'e', type: 'process', text: 'Обычный день' }, { id: 'z', type: 'terminal', text: 'Конец' }],
+      edges: [{ from: 'a', to: 'b' }, { from: 'b', to: 'c' }, { from: 'c', to: 'd', label: 'Да' }, { from: 'c', to: 'e', label: 'Нет' }, { from: 'd', to: 'z' }, { from: 'e', to: 'z' }] }, 'Тест');
+    eq(g.nodes.find(n => n.id === 'b').ag.b, 'cmd'); eq(g.nodes.find(n => n.id === 'a').ag.b, 'start'); eq(g.nodes.find(n => n.id === 'z').ag.b, 'end');
+    const ctx = await F.run(g, { name: 'Тест' }); ok(ctx.message, 'нет отчёта'); eq(errs, [], 'ошибки выполнения');
+    const loop = { nodes: [{ id: 'a', type: 'process', text: 'x', ag: { b: 'say', text: 'круг' } }], edges: [{ from: 'a', to: 'a' }] };
+    const c2 = await F.run(loop, { name: 'Цикл' }); ok(c2.warn.length > 0 && c2.steps < 100, 'цикл не остановлен');
+  });
+  test('Сценарии-графы', 'Ромб без понятного условия спрашивает пользователя «Да/Нет»', async () => {
+    const w = await seeded(); const F = w.Orbit.flow; let asked = '';
+    w.Orbit.assistant.askYesNo = async q => { asked = q; return false; };
+    const g = F.fromScheme({ nodes: [{ id: 'a', type: 'terminal', text: 'Начало' }, { id: 'c', type: 'decision', text: 'Готовы начать?' }, { id: 'd', type: 'process', text: 'Поехали' }, { id: 'e', type: 'process', text: 'Отложим' }], edges: [{ from: 'a', to: 'c' }, { from: 'c', to: 'd', label: 'Да' }, { from: 'c', to: 'e', label: 'Нет' }] }, 'Спрос');
+    const ctx = await F.run(g, { name: 'Спрос' }); eq(asked, 'Готовы начать?'); ok(ctx.message && ctx.message.cards.join('').includes('Отложим'), 'ветка «Нет» не выполнена');
+  });
+
+  test('Сценарии-графы', 'Блоки агента (ag) сохраняются при переходе схема ⇄ сценарий', async () => {
+    const w = await seeded(); const F = w.Orbit.flow;
+    const g = F.fromScheme({ nodes: [{ id: 'a', type: 'terminal', text: 'Начало', ag: { b: 'start' } }, { id: 'b', type: 'process', text: 'Задачи', ag: { b: 'tasks', title: 'Мои задачи' } }], edges: [{ from: 'a', to: 'b' }] }, 'AG');
+    eq(g.nodes[1].ag.title, 'Мои задачи'); eq(F.toScheme(g).nodes[1].ag.b, 'tasks');
+    const ctx = await F.run(g, { name: 'AG' }); ok(ctx.message.cards.join('').includes('Мои задачи'), 'заголовок раздела потерян');
+  });
+  test('Сценарии-графы', 'saveGraph создаёт сценарий и обновляет его по id (сохранение из FlowForge)', async () => {
+    const w = await seeded(); const S = w.Orbit.scripts, F = w.Orbit.flow, n0 = S.list().length;
+    const id = S.saveGraph({ name: 'Тест-сценарий', trigger: { kind: 'manual' }, graph: F.template('day-report') });
+    eq(S.list().length, n0 + 1);
+    const id2 = S.saveGraph({ id, name: 'Тест-сценарий 2', trigger: { kind: 'phrase', text: 'тест сценарий' }, graph: F.template('day-report') });
+    eq(id2, id); eq(S.list().length, n0 + 1); ok(S.list().find(s => s.id === id).name === 'Тест-сценарий 2', 'сценарий не обновился');
+    await tab(w, 'agent'); const r = await ask(w, 'тест сценарий'); has(r, /Запускаю сценарий/);
+  });
+
+  test('Сценарии-графы', 'Фраза запуска работает с дефисом, пробелом и словом «схема» (раньше уходила в мастер схем)', async () => {
+    const w = await seeded(); await tab(w, 'agent');
+    w.Orbit.scripts.saveGraph({ name: 'Схема 7', trigger: { kind: 'phrase', text: 'Схема-7' }, graph: w.Orbit.flow.template('day-report') });
+    for (const q of ['Схема-7', 'схема 7', 'Схема 7.']) { const r = await ask(w, q); has(r, /Запускаю сценарий/); }
+    eq(errs, [], 'ошибки выполнения');
+  });
+  test('Сценарии-графы', 'Повторное сохранение или импорт той же схемы обновляет сценарий, а не плодит дубликаты', async () => {
+    const w = await seeded(); const S = w.Orbit.scripts, F = w.Orbit.flow, n0 = S.list().length;
+    S.saveGraph({ name: 'A', src: 'p1', trigger: { kind: 'manual' }, graph: F.template('day-report') });
+    S.saveGraph({ name: 'A2', src: 'p1', trigger: { kind: 'manual' }, graph: F.template('day-report') });
+    eq(S.list().length, n0 + 1); eq(S.list()[S.list().length - 1].name, 'A2');
+  });
+
   /* ═════════════ 14. КАЛЬКУЛЯТОР ПРЯМО В ЧАТЕ ═════════════ */
   test('Калькулятор в чате', '«калькулятор» открывает панель в чате и не уводит на вкладку', async () => {
     const w = await seeded(); await tab(w, 'agent'); await ask(w, 'калькулятор'); await sleep(300);

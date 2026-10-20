@@ -326,7 +326,7 @@
      Фокус проверяется первым в A.process (работает и для голоса), живёт 10 минут, «отмена» выходит. Подробнее — docs/AGENT-DIALOG.md */
   let focus = null;
   const FOCUS_TTL = 10 * 60000;
-  const focusSet = (kind, data, fn) => { focus = { kind, data: data || {}, fn, exp: Date.now() + FOCUS_TTL }; };
+  const focusSet = (kind, data, fn, onCancel) => { focus = { kind, data: data || {}, fn, onCancel, exp: Date.now() + FOCUS_TTL }; };
   const focusClear = () => { focus = null; };
   const F_CANCEL = /^(отмена|отмени|отменить|стоп|стой|забудь|выйти|выход)$/;
   const F_DONE = /^(все|всё|хватит|достаточно|готово|больше ничего|больше нет|это все|это всё|закончил|закончила|дальше)$/;
@@ -360,12 +360,12 @@
   }
   function focusStep(text) {
     if (!focus) return null;
-    if (Date.now() > focus.exp) { focus = null; return null; }
+    if (Date.now() > focus.exp) { const f0 = focus; focus = null; if (f0.onCancel) f0.onCancel(); return null; }
     const f = focus, n = N(text).trim().replace(/[.!?…]+$/, '').trim();
-    if (F_CANCEL.test(n)) { focus = null; return [R('Ок, отменил.')]; }
+    if (F_CANCEL.test(n)) { focus = null; if (f.onCancel) f.onCancel(); return [R('Ок, отменил.')]; }
     let r = null;
     try { r = f.fn(String(text).trim(), n, f.data); } catch (e) { console.error('focus', f.kind, e); focus = null; return null; }
-    if (!r) { if (focus === f) focus = null; return null; }   // не по теме — обычная обработка
+    if (!r) { if (focus === f) { focus = null; if (f.onCancel) f.onCancel(); } return null; }   // не по теме — обычная обработка
     if (r.intent === undefined) r.intent = 'focus:' + f.kind;
     return [r];
   }
@@ -961,6 +961,21 @@
     return r;
   }
 
+  /* ───── API для сценариев-графов (js/orbit/flow.js) ───── */
+  /* выполнить команду «тихо»: без пузыря пользователя, ответы возвращаются, а не выводятся */
+  A.quiet = async function (text) { try { const r = await understandAsync(spokenMath(String(text || ''))); return r ? [r] : []; } catch (e) { console.error('quiet', e); return []; } };
+  A.knows = text => { try { return !!looksLikeCommand(text); } catch (e) { return false; } };
+  /* вопрос «Да/Нет» посреди сценария: ждёт ответ пользователя (кнопка, текст, голос); null — отменил/не ответил */
+  A.askYesNo = q => new Promise(resolve => {
+    try { const core = O.core && O.core(); if (core) { core.switchTab('agent'); A.panel = 'chat'; } } catch (e) { /* не критично */ }
+    push(R(q, { buttons: [btn('Да', 'cmd:да'), btn('Нет', 'cmd:нет'), cancelBtn()] })); A.render(true);
+    focusSet('yn', {}, (t, n) => {
+      if (F_YES.test(n)) { focusClear(); resolve(true); return R('Да ✓'); }
+      if (F_NO.test(n)) { focusClear(); resolve(false); return R('Нет ✓'); }
+      return R('Скажите «да» или «нет».', { buttons: [btn('Да', 'cmd:да'), btn('Нет', 'cmd:нет'), cancelBtn()] });
+    }, () => resolve(null));
+  });
+
   /* ───── карточки расписания / автобусов (из 3.23) ───── */
   function cardSchedule(items, header) {
     if (!items || !items.length) return '';
@@ -1136,6 +1151,7 @@
   }
   A.process = function (text) {
     { const fr = focusStep(text); if (fr) return fr; }   // продолжение незаконченной команды
+    { const sc = O.scripts && O.scripts.match && O.scripts.match(text); if (sc) { O.scripts.run(sc); return [R('Запускаю сценарий «' + sc.name + '».')]; } }   // фраза-триггер сценария важнее встроенных мастеров (в т. ч. «схема …»)
     text = spokenMath(text);
     try { const pre = O.inline && O.inline.handle(text); if (pre && pre.length) return pre; } catch (e) { console.error('inline', e); }
     text = toLegacy(text);
