@@ -4,7 +4,7 @@
    • офлайн: все файлы приложения кэшируются при установке (включая библиотеки dagre/jsPDF для схем);
    • обновления: новая версия ставится в фоне, пользователь подтверждает «Обновить» (тост в приложении);
    • «Поделиться в Контур»: принимает файл/текст из системного меню (share_target) и передаёт в приложение. */
-const V = 'contour-v5.7.1';
+const V = 'contour-v5.7.2';
 const SHARE = 'contour-share';
 const CORE = [
   './', './index.html', './manifest.json', './version.json',
@@ -27,12 +27,10 @@ const CDN_HOSTS = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(V).then(c => Promise.all([
     ...CORE.map(u => c.add(u).catch(() => {})),
-    // внешние скрипты: opaque-ответ нельзя добавить через add(), кладём вручную
     ...CDN.map(u => fetch(new Request(u, { mode: 'no-cors' })).then(r => c.put(u, r)).catch(() => {}))
   ])));
 });
 
-// чистим только кэши Контура прошлых версий и кэши прежних отдельных воркеров (orbit-*, ff-*, cifra-*)
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k =>
     (k.startsWith('contour-') && k !== V && k !== SHARE) || k.startsWith('orbit-') || k.startsWith('ff-') || k.startsWith('cifra-')
@@ -52,8 +50,6 @@ self.addEventListener('fetch', e => {
   e.respondWith(staleWhileRevalidate(req));
 });
 
-// страницы: сеть → кэш. Каждая страница кэшируется под СВОИМ адресом (раньше любая навигация, в том числе внутри iframe
-// калькулятора, затирала запись главной страницы).
 async function navigate(req, url) {
   const c = await caches.open(V);
   try {
