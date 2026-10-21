@@ -1,4 +1,4 @@
-/* Контур 5.8.4 · LLM-провайдеры: LLM7 (бесплатно без ключа), GigaChat, Grok, DeepSeek, Claude, OpenAI / custom */
+/* Контур 5.8.6 · LLM-провайдеры: LLM7 (бесплатно без ключа), GigaChat, Grok, DeepSeek, Claude, OpenAI / custom */
 (function () {
   const O = window.Orbit = window.Orbit || {};
   const C = () => O.core();
@@ -8,10 +8,10 @@
     llm7: {
       id: 'llm7',
       name: 'LLM7.io (бесплатно, без ключа)',
-      hint: 'Анонимный OpenAI-совместимый endpoint. Ключ можно оставить «unused» или пустым. Лимит ~10 req/min.',
+      hint: 'Селектор fast/default работает без ключа. Конкретные модели (gemma4 и др.) часто требуют бесплатный токен с dash.llm7.io. Лимит ~10 req/min анонимно.',
       chatUrl: 'https://api.llm7.io/v1/chat/completions',
-      models: ['gpt-oss', 'gemma4:31b', 'minimax-m2.7', 'codestral-latest', 'mistral-Nemo-Instruct-2407'],
-      defaultModel: 'gpt-oss',
+      models: ['fast', 'default', 'mistral-Nemo-Instruct-2407', 'codestral-latest', 'minimax-m2.7', 'gpt-oss:20b', 'gemma4:31b'],
+      defaultModel: 'fast',
       needsOAuth: false,
       free: true,
       noKey: true
@@ -221,13 +221,17 @@ ${ctx ? ('Контекст данных (используй при ответе,
   }
 
   async function chatOpenAI(url, token, model, system, user) {
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    };
+    // Для бесплатных (LLM7 и т.п.) без ключа не шлём Authorization — иначе 401 на части моделей
+    if (token && String(token).trim() && String(token).trim().toLowerCase() !== 'unused') {
+      headers['Authorization'] = 'Bearer ' + String(token).trim();
+    }
     const res = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
+      headers,
       body: JSON.stringify({
         model,
         messages: [
@@ -296,7 +300,7 @@ ${ctx ? ('Контекст данных (используй при ответе,
         res = await chatClaude(url, c.key, model, system, userText);
       } else {
         // Бесплатные провайдеры (llm7 и т.п.) работают без ключа или с «unused»
-        const token = (p.noKey || p.free) ? (c.key || 'unused') : c.key;
+        const token = (p.noKey || p.free) ? (c.key || '') : c.key;
         if (!p.noKey && !p.free && !token) return { ok: false, error: 'Нужен API Key.' };
         if (!url) return { ok: false, error: 'Не указан endpoint.' };
         res = await chatOpenAI(url, token, model, system, userText);
