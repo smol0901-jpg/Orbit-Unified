@@ -4,7 +4,7 @@
    • офлайн: все файлы приложения кэшируются при установке (включая библиотеки dagre/jsPDF для схем);
    • обновления: новая версия ставится в фоне, пользователь подтверждает «Обновить» (тост в приложении);
    • «Поделиться в Контур»: принимает файл/текст из системного меню (share_target) и передаёт в приложение. */
-const V = 'contour-v5.7.0';
+const V = 'contour-v5.7.1';
 const SHARE = 'contour-share';
 const CORE = [
   './', './index.html', './manifest.json', './version.json',
@@ -12,7 +12,7 @@ const CORE = [
   './js/jsQR.js', './js/xlsx.mini.min.js', './js/app.js', './js/orbit/engine.js',
   './js/orbit/kit.js', './js/orbit/brand.js', './js/orbit/habits.js', './js/orbit/dash.js',
   './js/orbit/lists.js', './js/orbit/actions.js', './js/orbit/llm.js', './js/orbit/assistant.js', './js/orbit/inline.js',
-  './js/orbit/flow.js', './js/orbit/scripts.js', './js/orbit/share.js', './js/orbit/storage.js', './js/orbit/settings.js', './js/orbit/boot.js',
+  './js/orbit/flow.js', './js/orbit/scripts.js', './js/orbit/share.js', './js/orbit/storage.js', './js/orbit/store.js', './js/orbit/settings.js', './js/orbit/boot.js',
   './js/orbit/tools.js', './js/orbit/work.js', './cifra/js/engine.js', './icons/icon.svg',
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
   './icons/favicon-32.png', './cifra/index.html', './cifra/css/style.css', './cifra/js/app.js', './cifra/js/voice.js',
@@ -21,7 +21,7 @@ const CORE = [
   './flowforge/icons/icon-192.png', './flowforge/icons/icon-512.png', './flowforge/icons/icon.svg', './flowforge/icons/logo.webp',
   './cifra/icons/icon-192.png', './cifra/icons/icon-512.png', './cifra/icons/icon.svg', './cifra/icons/brand.png',
   './icons/icon-maskable-192.png', './icons/mstile-150.png'];
-const CDN = ['https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js'];
+const CDN = ['https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js', 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', 'https://cdn.jsdelivr.net/npm/dexie@4.0.11/dist/dexie.min.js'];
 const CDN_HOSTS = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
 
 self.addEventListener('install', e => {
