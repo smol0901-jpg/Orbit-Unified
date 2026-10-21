@@ -12,6 +12,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="msapplication-TileColor" content="#090c17" />
   <meta name="msapplication-config" content="browserconfig.xml" />
+  <!-- CSP: ограничение скриптов, стилей и исходящих запросов (5.8.4) -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.x.ai https://api.deepseek.com https://api.openai.com https://api.anthropic.com https://api.giga.chat https://ngw.devices.sberbank.ru:9443 https://generativelanguage.googleapis.com https://api.groq.com https://openrouter.ai https://api.llm7.io https://text.pollinations.ai https://gen.pollinations.ai https://cdn.jsdelivr.net; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; frame-src 'self'; media-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';" />
   <title>Контур — Рабочее пространство</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" id="o-favicon" type="image/svg+xml" href="icons/icon.svg" />
