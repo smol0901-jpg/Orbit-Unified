@@ -1,0 +1,21 @@
+name: restore-app-js
+on:
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore js/app.js
+        run: |
+          python3 -c "
+          import base64, gzip, pathlib
+          print('placeholder - full restore via manual upload')
+          "
+      - name: Commit
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          echo skip
