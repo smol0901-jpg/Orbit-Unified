@@ -395,6 +395,15 @@ ${ctx ? ('Контекст данных (используй при ответе,
         return { ok: false, steps, summary: 'Нет API Key.' };
       }
       add('creds', 'API Key', true, 'Задан');
+    } else if (p.noKey || p.free) {
+      // LLM7 и аналоги — без ключа
+      add('creds', 'API Key', true, 'Не нужен (бесплатный провайдер)');
+      const url = chatUrl(c) || p.chatUrl;
+      if (!url) {
+        add('endpoint', 'Endpoint', false, 'Нет URL. Выберите пресет ещё раз.');
+        return { ok: false, steps, summary: 'Нет endpoint.' };
+      }
+      add('endpoint', 'Endpoint', true, url);
     } else {
       if (!c.key) {
         add('creds', 'API Key', false, 'Вставьте ключ для ' + p.name);

@@ -131,7 +131,7 @@
           <div class="o-wiz-steps" id="llm-wiz-steps">
             <div class="o-wiz-s"><span>1</span> Включите API сверху</div>
             <div class="o-wiz-s"><span>2</span> Выберите провайдер (сейчас: <b>${esc(pname)}</b>)</div>
-            <div class="o-wiz-s"><span>3</span> ${prov === 'giga' ? 'Заполните Client ID и Secret ниже (Proxy оставьте пустым)' : prov === 'custom' ? 'Укажите Endpoint и API Key ниже' : 'Вставьте API Key ниже'}</div>
+            <div class="o-wiz-s"><span>3</span> ${prov === 'giga' ? 'Заполните Client ID и Secret ниже (Proxy оставьте пустым)' : prov === 'custom' ? 'Укажите Endpoint и API Key ниже' : 'Ключ (для LLM7 можно пустым)'}</div>
             <div class="o-wiz-s"><span>4</span> Нажмите «Проверить подключение»</div>
           </div>
           <div class="o-wiz-actions">
