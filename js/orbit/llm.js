@@ -167,9 +167,38 @@
     return (p && p.chatUrl) || '';
   }
 
+  /* снимок данных для LLM (короткий, без секретов) */
+  function appContext() {
+    try {
+      const core = O.core && O.core();
+      const st = (core && core.state) || {};
+      const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      const di = (new Date().getDay() + 6) % 7;
+      const today = days[di];
+      const lessons = (st.lessons || []).filter(l => l && l.day === di).slice(0, 8)
+        .map(l => (l.start || '') + '-' + (l.end || '') + ' ' + (l.subject || '')).filter(Boolean);
+      const hw = (st.homework || []).filter(h => h && !h.done).slice(0, 6)
+        .map(h => h.title || h.text || '').filter(Boolean);
+      const goals = (st.goals || []).filter(g => g && !g.done).slice(0, 4)
+        .map(g => g.title || '').filter(Boolean);
+      const buses = (st.buses || []).slice(0, 4)
+        .map(b => '№' + (b.number || b.name || '?') + (b.time ? ' ' + b.time : (Array.isArray(b.times) && b.times[0] ? ' ' + b.times[0] : ''))).filter(Boolean);
+      const name = (st.profile && st.profile.name) || '';
+      const lines = [];
+      if (name) lines.push('Пользователь: ' + name);
+      lines.push('Сегодня: ' + today);
+      if (lessons.length) lines.push('Встречи сегодня: ' + lessons.join('; '));
+      if (hw.length) lines.push('Открытые задачи: ' + hw.join('; '));
+      if (goals.length) lines.push('Цели: ' + goals.join('; '));
+      if (buses.length) lines.push('Маршруты: ' + buses.join('; '));
+      return lines.join('\n');
+    } catch (e) { return ''; }
+  }
+
   function systemPrompt(userExtra) {
     const skillList = ((O.actions && O.actions.SKILLS) || [])
       .map(sk => sk.id + ': ' + ((sk.examples && sk.examples[0]) || sk.label)).join('\n');
+    const ctx = appContext();
     return `Ты маршрутизатор рабочего пространства «Контур». Пользователь пишет на русском.
 Ответь ТОЛЬКО JSON без markdown:
 {"skill":"<id>","slots":{},"command":"<готовая команда на русском или пусто>","reply":"<краткий текст если не команда>"}
@@ -177,7 +206,7 @@
 ${skillList}
 Если это управление Контуром — заполни command (пример: "добавь встречу Планёрка пн 9:30").
 Если обычный вопрос — skill:"help" и reply.
-${userExtra || ''}`;
+${ctx ? ('Контекст данных (используй при ответе, не выдумывай встречи/задачи):\n' + ctx + '\n') : ''}${userExtra || ''}`;
   }
 
   async function chatOpenAI(url, token, model, system, user) {
