@@ -1,6 +1,6 @@
 {
-  "version": "5.7.1",
+  "version": "5.7.2",
   "build": 20261021,
   "name": "Контур",
-  "notes": "5.7.1: слой данных Orbit.store (Dexie) — schemaVersion, автомиграция localStorage→IndexedDB, dual-write"
+  "notes": "5.7.2: сценарии — dual-write в Dexie, экспорт/импорт JSON"
 }
