@@ -1,1 +1,1 @@
-/* temporary - will be replaced */
+PLACEHOLDER_FOR_FULL_CONTENT
