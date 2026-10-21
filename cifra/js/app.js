@@ -1,3 +1,5 @@
+/* embed in Контур */
+try { if (window.parent && window.parent !== window) document.documentElement.classList.add('embedded'); } catch (e) {}
 (()=>{
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const V='8.0',SHEETJS='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';

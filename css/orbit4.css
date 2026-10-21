@@ -422,7 +422,7 @@ button.o-sos-big{width:100%;text-align:left;cursor:pointer;font:inherit;color:in
   overflow: hidden;
   position: relative;
   /* fill viewport: header + bottom nav + safe areas */
-  height: calc(100dvh - var(--header-h, 56px) - var(--nav-h, 64px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  height: calc(100dvh - var(--header-h, 52px) - var(--nav-h, 58px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
   min-height: 50vh;
   width: 100%;
   max-width: none;
