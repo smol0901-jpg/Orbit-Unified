@@ -1,10 +1,21 @@
-/* Контур 4.3 · LLM-провайдеры: GigaChat, Grok, DeepSeek, Claude, OpenAI / custom */
+/* Контур 5.8.4 · LLM-провайдеры: LLM7 (бесплатно без ключа), GigaChat, Grok, DeepSeek, Claude, OpenAI / custom */
 (function () {
   const O = window.Orbit = window.Orbit || {};
   const C = () => O.core();
   const S = () => C().state;
 
   const PROVIDERS = {
+    llm7: {
+      id: 'llm7',
+      name: 'LLM7.io (бесплатно, без ключа)',
+      hint: 'Анонимный OpenAI-совместимый endpoint. Ключ можно оставить «unused» или пустым. Лимит ~10 req/min.',
+      chatUrl: 'https://api.llm7.io/v1/chat/completions',
+      models: ['gpt-oss', 'gemma4:31b', 'minimax-m2.7', 'codestral-latest', 'mistral-Nemo-Instruct-2407'],
+      defaultModel: 'gpt-oss',
+      needsOAuth: false,
+      free: true,
+      noKey: true
+    },
     giga: {
       id: 'giga',
       name: 'GigaChat (Сбер)',
@@ -19,7 +30,7 @@
     grok: {
       id: 'grok',
       name: 'Grok (xAI)',
-      hint: 'OpenAI-совместимый API xAI',
+      hint: 'OpenAI-совместимый API xAI (платный)',
       chatUrl: 'https://api.x.ai/v1/chat/completions',
       models: ['grok-2', 'grok-2-latest', 'grok-3', 'grok-3-mini'],
       defaultModel: 'grok-2-latest',
@@ -284,9 +295,11 @@ ${ctx ? ('Контекст данных (используй при ответе,
         if (!c.key) return { ok: false, error: 'Нужен API Key Anthropic.' };
         res = await chatClaude(url, c.key, model, system, userText);
       } else {
-        if (!c.key) return { ok: false, error: 'Нужен API Key.' };
+        // Бесплатные провайдеры (llm7 и т.п.) работают без ключа или с «unused»
+        const token = (p.noKey || p.free) ? (c.key || 'unused') : c.key;
+        if (!p.noKey && !p.free && !token) return { ok: false, error: 'Нужен API Key.' };
         if (!url) return { ok: false, error: 'Не указан endpoint.' };
-        res = await chatOpenAI(url, c.key, model, system, userText);
+        res = await chatOpenAI(url, token, model, system, userText);
       }
       if (!res.ok) {
         const t = await res.text().catch(() => '');
@@ -315,6 +328,8 @@ ${ctx ? ('Контекст данных (используй при ответе,
   O.llmReady = function () {
     const c = cfg();
     if (!c.enabled) return false;
+    const p = PROVIDERS[c.provider] || PROVIDERS.custom;
+    if (p.noKey || p.free) return true; // LLM7 и аналоги — без ключа
     if (c.provider === 'giga') return !!(c.authKey || (c.clientId && c.clientSecret));
     if (c.provider === 'custom') return !!(c.endpoint && c.key);
     return !!c.key;
