@@ -1304,3 +1304,24 @@ nav.main-nav .nav-btn {
 
 .agent-msg .subject-chips { margin-top: 8px; }
 .agent-copy-btn { font-size: 0.8rem; margin-top: 8px; }
+
+/* 5.8.9: diary / journal — no horizontal overflow at 320–390 px */
+#tab-diary,
+#tab-diary .section-header,
+#tab-diary .form-group,
+#tab-diary input,
+#tab-diary textarea,
+#tab-diary select,
+.mood-row {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.mood-row {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#tab-diary .form-group label {
+  word-break: break-word;
+}

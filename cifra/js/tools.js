@@ -660,8 +660,10 @@ function acc(root,C){
     lastAcc=res.map(([l,val])=>l+': '+(typeof val==='number'?C.money(val):val)).join('\n');
     cb.innerHTML='';
     if(k==='НДС'){
-      const rows=res.filter(r=>typeof r[1]==='number'&&(r[0].includes('НДС')||r[0].includes('Без')||r[0].includes('с НДС')));
-      if(rows.length>=2)Graph.donut(cb,rows.slice(0,3).map(r=>({n:r[0],v:Math.abs(r[1])})),'НДС');
+      const base = res.find(r=>typeof r[1]==='number' && (r[0].includes('Без') || r[0]==='База'));
+      const vat = res.find(r=>typeof r[1]==='number' && (r[0]==='НДС' || (r[0].includes('НДС') && !r[0].includes('с'))));
+      const tot = res.find(r=>typeof r[1]==='number' && r[0].includes('с НДС'));
+      if(base && vat) Graph.donut(cb,[{n:'База',v:Math.abs(base[1])},{n:'НДС',v:Math.abs(vat[1])}], tot ? 'Сумма с НДС' : 'НДС');
     }
     if(k==='Маржа / наценка'){
       const cost=v[0],profit=Math.max(v[1]-v[0],0);

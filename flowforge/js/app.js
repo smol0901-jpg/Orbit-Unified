@@ -12,7 +12,7 @@ const ANIM=new Map(),NANIM=new Map(),DUR=420,REDUCE=matchMedia('(prefers-reduced
 const DASH={solid:'',dashed:'9 6',dotted:'0.1 7',dashdot:'12 6 0.1 6'},hex6=c=>{c=String(c||'');if(/^#[0-9a-f]{3}$/i.test(c))c='#'+[...c.slice(1)].map(x=>x+x).join('');return/^#[0-9a-f]{6}$/i.test(c)?c.toLowerCase():null},pick=(o,ks)=>Object.fromEntries(ks.filter(k=>o[k]!=null&&o[k]!=='').map(k=>[k,o[k]]));
 let sel=new Set(),selE=null,tool='select',linkFrom=null,hist=[],hi=-1,clip=null,ov='',raf=0,space=false,last={t:0,id:0},NM=new Map(),g=null;
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const G=v=>cfg.snap?Math.round(v/(cfg.gs||20))*(cfg.gs||20):Math.round(v),N=id=>S.nodes.find(n=>n.id==id),stamp=()=>new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+const G=v=>cfg.snap?Math.round(v/(cfg.gs||20))*(cfg.gs||20):Math.round(v),N=id=>S.nodes.find(n=>n.id==id),stamp=()=>{const d=new Date();const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}-${p(d.getHours())}-${p(d.getMinutes())}`};
 const toast=m=>{const t=$('#toast');t.textContent=m;try{t.showPopover&&!t.matches(':popover-open')&&t.showPopover()}catch{}t.classList.add('show');clearTimeout(t._);t._=setTimeout(()=>{t.classList.remove('show');setTimeout(()=>{try{t.hidePopover&&t.hidePopover()}catch{}},250)},2600)};
 const ink=c=>{c=c.replace('#','');if(c.length==3)c=[...c].map(x=>x+x).join('');const[r,g,b]=[0,2,4].map(i=>parseInt(c.substr(i,2),16));return(r*299+g*587+b*114)/1000>140?'#1e1e2e':'#ffffff'};
 const nid=p=>{let i=1;const u=new Set([...S.nodes,...S.edges,...S.groups].map(o=>o.id));while(u.has(p+i))i++;return p+i};
@@ -186,7 +186,7 @@ function s2w(mx,my){const c=S.cam,a=-cr(),ca=Math.cos(a),sa=Math.sin(a),dx=mx-c.
 function anchor(wx,wy,mx,my){const c=S.cam,a=cr(),ca=Math.cos(a),sa=Math.sin(a);c.x=mx-c.k*(ca*wx-sa*wy);c.y=my-c.k*(sa*wx+ca*wy)}
 const camT=c=>`translate(${c.x} ${c.y}) rotate(${(cr()*180/Math.PI).toFixed(3)}) scale(${c.k})`;
 function viewB(){const r=svg.getBoundingClientRect(),P=[[0,0],[r.width,0],[r.width,r.height],[0,r.height]].map(p=>s2w(p[0],p[1])),xs=P.map(p=>p[0]),ys=P.map(p=>p[1]),x=Math.min(...xs),y=Math.min(...ys);return{x,y,w:Math.max(...xs)-x,h:Math.max(...ys)-y,P}}
-function fitRect(x,y,w,h,maxk=1.6,mink=.15){const r=svg.getBoundingClientRect(),a=cr(),ca=Math.abs(Math.cos(a)),sa=Math.abs(Math.sin(a)),W=Math.max(1,w*ca+h*sa),H=Math.max(1,w*sa+h*ca);S.cam.k=Math.max(mink,Math.min(maxk,Math.min((r.width-60)/W,(r.height-60)/H)));anchor(x+w/2,y+h/2,r.width/2,r.height/2);draw();save()}
+function fitRect(x,y,w,h,maxk=1.6,mink=.5){const r=svg.getBoundingClientRect(),a=cr(),ca=Math.abs(Math.cos(a)),sa=Math.abs(Math.sin(a)),W=Math.max(1,w*ca+h*sa),H=Math.max(1,w*sa+h*ca);S.cam.k=Math.max(mink,Math.min(maxk,Math.min((r.width-60)/W,(r.height-60)/H)));anchor(x+w/2,y+h/2,r.width/2,r.height/2);draw();save()}
 function fit(){const b=bbox();fitRect(b.x,b.y,b.w,b.h)}
 function zoomAt(f,cx,cy){const r=svg.getBoundingClientRect(),mx=cx-r.left,my=cy-r.top,w=s2w(mx,my);S.cam.k=Math.max(.1,Math.min(4,S.cam.k*f));anchor(w[0],w[1],mx,my);drawCam()}
 const zoomC=f=>{const r=svg.getBoundingClientRect();zoomAt(f,r.left+r.width/2,r.top+r.height/2)};
@@ -329,6 +329,33 @@ async png(){if(!S.nodes.length)return toast('Схема пуста');const{c}=aw
 svg(){NM=new Map(S.nodes.map(n=>[n.id,n]));dl(new Blob([svgStr().s],{type:'image/svg+xml'}),`${slug(pname())}-${stamp()}.svg`)},
 async pdf(){if(!window.jspdf)return toast('PDF: нужна сеть для jsPDF');const{c,w,h}=await canvas(2,true),d=new jspdf.jsPDF({orientation:w>h?'l':'p',unit:'px',format:[w,h]});d.addImage(c.toDataURL('image/png'),'PNG',0,0,w,h);d.save(`${slug(pname())}-${stamp()}.pdf`)},
 async share(){const{c}=await canvas(2);c.toBlob(b=>{const f=new File([b],'flowforge.png',{type:'image/png'});navigator.canShare&&navigator.canShare({files:[f]})?navigator.share({files:[f]}).catch(()=>{}):dl(b,'flowforge.png')})},
+'toagent-json': async function(){
+  if(!S.nodes.length)return toast('Схема пуста');
+  const doc=ser(true), name=pname()||'Схема';
+  const payload={t:'ff-to-agent',kind:'json',name,doc};
+  try{
+    if(window.parent&&window.parent!==window)window.parent.postMessage(payload,location.origin);
+    else window.postMessage(payload,location.origin);
+    toast('Схема отправлена в агент Контура');
+  }catch(e){toast('Не удалось отправить в агент');}
+},
+'toagent-png': async function(){
+  if(!S.nodes.length)return toast('Схема пуста');
+  const{c}=await canvas(+cfg.sc||2);
+  c.toBlob(b=>{
+    const r=new FileReader();
+    r.onload=()=>{
+      const payload={t:'ff-to-agent',kind:'png',name:pname()||'Схема',dataUrl:r.result};
+      try{
+        if(window.parent&&window.parent!==window)window.parent.postMessage(payload,location.origin);
+        else window.postMessage(payload,location.origin);
+        toast('PNG отправлен в агент Контура');
+      }catch(e){toast('Не удалось отправить PNG');}
+    };
+    r.readAsDataURL(b);
+  },'image/png');
+},
+
 install(){window.dp&&window.dp.prompt()}};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-a],[data-t],[data-add],[data-tab],[data-route],[data-sc],[data-bg],[data-close],[data-al],[data-tpl],[data-pj],[data-pdel],[data-lint],[data-rad],[data-gs],[data-pg]');if(!b)return;
 if(b.hasAttribute('data-close'))return MENU.close();
@@ -985,3 +1012,5 @@ try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}ca
 if(/^#[dj]=/.test(location.hash))unpack(location.hash).then(t=>{newProject('Схема по ссылке',JSON.parse(t));reveal();history.replaceState(null,'',location.href.split('#')[0]);toast('Открыта схема по ссылке')}).catch(()=>toast('Ссылка повреждена или неполная'));
 /* Контур: открыть схему, присланную из «Сценариев» (postMessage, тот же origin) */
 addEventListener('message',e=>{if(e.origin!==location.origin||!e.data||e.data.t!=='ff-open'||!e.data.doc)return;try{newProject(e.data.name,e.data.doc);reveal();toast('Открыта схема: '+(e.data.name||''));window.agOpen&&window.agOpen()}catch(x){toast('⚠️ Не удалось открыть схему')}});
+
+
