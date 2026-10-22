@@ -167,7 +167,18 @@
         if (a === 'import') { const f = document.getElementById('sc-import-file'); if (f) { f.onchange = e => { if (e.target.files && e.target.files[0]) importJSON(e.target.files[0]); e.target.value = ''; }; f.click(); } return; }
         if (a === 'new') ed = { id: uid(), name: 'Новый сценарий', trigger: { kind: 'manual' }, steps: [] };
         else if (a === 'tpl') { const t = JSON.parse(JSON.stringify(TEMPLATES[+b.dataset.i])); ed = Object.assign({ id: uid() }, t); }
-        else if (a === 'edit') { const sc0 = list.find(s => s.id === id); if (sc0 && sc0.graph && O.flow) { O.flow.openInFlowForge(sc0.graph, sc0.name, { scId: sc0.id, name: sc0.name, trigger: sc0.trigger }); return; } ed = JSON.parse(JSON.stringify(sc0)); }
+        else if (a === 'edit') {
+          const sc0 = list.find(s => s.id === id);
+          if (!sc0) return;
+          if (sc0.graph && O.flow && typeof O.flow.openInFlowForge === 'function') {
+            try { O.flow.openInFlowForge(sc0.graph, sc0.name, { scId: sc0.id, name: sc0.name, trigger: sc0.trigger }); return; }
+            catch (err) { console.error('openInFlowForge', err); }
+          }
+          // fallback: локальный редактор шагов
+          ed = JSON.parse(JSON.stringify(sc0));
+          draw();
+          return;
+        }
         else if (a === 'pickscheme') picker = !picker;
         else if (a === 'gtpl') { const t = O.flow.TEMPLATES[id]; if (t) { list.push({ id: uid(), name: t.name, trigger: JSON.parse(JSON.stringify(t.trigger)), graph: t.build(), steps: [] }); save(); } }
         else if (a === 'imp') {

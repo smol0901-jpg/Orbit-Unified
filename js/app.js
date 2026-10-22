@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'orbit-planner-v3';
   const BACKUP_KEY = 'orbit-planner-backup-v3';
-  const APP_VERSION = '5.8.6';
+  const APP_VERSION = '5.8.21';
   const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   const DAYS_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
   const SUBJECTS = [

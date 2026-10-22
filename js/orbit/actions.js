@@ -174,6 +174,12 @@
     const s = S();
     if (day == null || !name || !start) return { ok: false, msg: 'Нужны день, название и время.' };
     s.clubs = s.clubs || [];
+    // Дедуп: тот же день + похожее имя + то же время начала
+    const same = s.clubs.find(x => +x.day === +day && String(x.start) === String(start) &&
+      String(x.name || '').toLowerCase().replace(/\s+/g, ' ').trim() === String(name).toLowerCase().replace(/\s+/g, ' ').trim());
+    if (same) {
+      return { ok: true, msg: `Такой блок уже есть: «${same.name}» ${dayLabel(+day)} в ${start}. Ничего не добавил.`, id: same.id, duplicate: true };
+    }
     const c = { id: uid(), day: +day, name, start, end: end || start, place: place || '', teacher: '', items: [] };
     s.clubs.push(c); saveRender();
     const undo = () => { s.clubs = s.clubs.filter(x => x.id !== c.id); saveRender(); };
@@ -312,6 +318,9 @@
     const s = S();
     if (!title) return { ok: false, msg: 'Какая цель?' };
     s.goals = s.goals || [];
+    const norm = String(title).toLowerCase().replace(/ё/g, 'е').trim();
+    const dup = s.goals.find(x => !x.done && String(x.title || '').toLowerCase().replace(/ё/g, 'е').trim() === norm);
+    if (dup) return { ok: true, msg: 'Такая цель уже есть: «' + dup.title + '».', undo: null };
     const g = { id: uid(), title, progress: 0, done: false };
     s.goals.push(g); saveRender();
     const undo = () => { s.goals = s.goals.filter(x => x.id !== g.id); saveRender(); };
@@ -322,11 +331,16 @@
     const s = S();
     if (!text) return { ok: false, msg: 'Что записать?' };
     s.notes = s.notes || [];
-    const n = { id: uid(), text, at: Date.now() };
+    const now = Date.now();
+    const lines = String(text).trim().split(/\n+/);
+    const title = (lines[0] || 'Заметка').slice(0, 80);
+    const body = lines.length > 1 ? lines.slice(1).join('\n') : (lines[0] || '');
+    // title+body+created — формат, который ждёт renderNotes / openNoteModal
+    const n = { id: uid(), title, body, text: body, at: now, created: now, updated: now };
     s.notes.unshift(n); saveRender();
     const undo = () => { s.notes = s.notes.filter(x => x.id !== n.id); saveRender(); };
-    logChange('Заметка', undo, { type: 'note', id: n.id });
-    return { ok: true, msg: 'Заметка сохранена.', undo };
+    logChange('Заметка «' + title + '»', undo, { type: 'note', id: n.id });
+    return { ok: true, msg: 'Заметка сохранена.', id: n.id, undo };
   };
   A.addDiary = function (text, mood) {
     const s = S();

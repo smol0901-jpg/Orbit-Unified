@@ -34,7 +34,9 @@
       <span class="o-dock-sub">в чате · все разделы CIFRA внизу</span>
       <button type="button" class="o-ib" data-dact="min" aria-label="Свернуть">▾</button><button type="button" class="o-ib" data-dact="close" aria-label="Закрыть">✕</button></div>
       <div class="o-dock-b"></div>`;
-    host.insertBefore(d, $('ag-body'));
+    const msgs = host.querySelector('#ag-msgs') || host.querySelector('.o-msgs');
+    if (msgs && msgs.parentNode) msgs.parentNode.insertBefore(d, msgs);
+    else host.appendChild(d);
     d.addEventListener('click', e => {
       const t = e.target.closest('[data-dtab]'); if (t) { I.openCalc({ tab: t.dataset.dtab }); return; }
       const a = e.target.closest('[data-dact]'); if (!a) return;
@@ -72,6 +74,352 @@
   };
   I.closeCalc = function () { dock.open = false; syncDock(); };
   function feedDock(expr) { if (dock.open) post({ type: 'orbit-calc', expr: expr, tab: 'calc' }); }
+
+
+  /* ═══════════ 1b. ПАНЕЛЬ ПОМИДОРА В ЧАТЕ (как калькулятор) ═══════════ */
+  const pomoDock = I.pomoDock = { open: false, min: false };
+  let _pomoUITimer = null;
+
+  function pomoHost() {
+    // внутри чата (как карточка), не над вкладками агента
+    return document.querySelector('#ag-body .o-chat')
+      || document.getElementById('ag-msgs')
+      || document.querySelector('#agent-root .o-agent')
+      || document.getElementById('agent-root');
+  }
+  function pomoEl() {
+    let d = $('ag-pomo-dock'); if (d) return d;
+    const host = pomoHost(); if (!host) return null;
+    d = document.createElement('div'); d.id = 'ag-pomo-dock'; d.className = 'o-dock o-pomo-dock o-pomo-inchat'; d.hidden = true;
+    d.innerHTML = `
+      <div class="o-dock-h">
+        <b>🍅 Помидор</b>
+        <span class="o-dock-sub" id="ag-pomo-sub">фокус</span>
+        <button type="button" class="o-ib" data-pact="min" aria-label="Свернуть">▾</button>
+        <button type="button" class="o-ib" data-pact="close" aria-label="Закрыть">✕</button>
+      </div>
+      <div class="o-dock-b o-pomo-panel">
+        <div class="o-pomo-row">
+          <div class="o-pomo-ring-lg" id="ag-pomo-ring"></div>
+          <div class="o-pomo-side">
+            <div class="o-pomo-meta" id="ag-pomo-meta"></div>
+            <div class="o-pomo-actions" id="ag-pomo-acts"></div>
+            <div class="o-pomo-presets" id="ag-pomo-presets">
+              <button type="button" class="o-chip" data-pomo="15">15</button>
+              <button type="button" class="o-chip" data-pomo="25">25</button>
+              <button type="button" class="o-chip" data-pomo="45">45</button>
+              <button type="button" class="o-chip" data-pomo="50">50</button>
+              <button type="button" class="o-chip" data-pomo="90">90</button>
+            </div>
+            <div class="o-pomo-extra">
+              <label class="o-sw"><input type="checkbox" id="ag-pomo-sound" checked><i></i><span>Звук</span></label>
+              <button type="button" class="o-chip" data-pact="focus">Фокус</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+    const msgs = host.querySelector('#ag-msgs') || host.querySelector('.o-msgs');
+    if (msgs && msgs.parentNode === host) host.insertBefore(d, msgs);
+    else if (msgs) msgs.parentNode.insertBefore(d, msgs);
+    else host.appendChild(d);
+    d.addEventListener('click', e => {
+      const a = e.target.closest('[data-pact]');
+      if (a) {
+        const k = a.dataset.pact;
+        if (k === 'close') { I.closePomo(); return; }
+        if (k === 'min') { pomoDock.min = !pomoDock.min; syncPomoDock(); return; }
+        if (k === 'focus' && O.focusMode) { O.focusMode.toggle(); C().toast && C().toast(O.focusMode.isOn() ? 'Концентрация' : 'Обычный режим'); return; }
+        if (k === 'home' && O.actions) { O.actions.go('today'); return; }
+      }
+      const p = e.target.closest('[data-pomo]');
+      if (p) {
+        const m = +p.dataset.pomo;
+        if (O.pomo) O.pomo.start(m);
+        renderPomoPanel();
+        return;
+      }
+      const act = e.target.closest('[data-pomo-act]');
+      if (act) {
+        const k = act.dataset.pomoAct;
+        if (k === 'start' && O.pomo) O.pomo.start();
+        if (k === 'pause' && O.pomo) O.pomo.pause();
+        if (k === 'reset' && O.pomo) O.pomo.reset();
+        renderPomoPanel();
+      }
+    });
+    const snd = d.querySelector('#ag-pomo-sound');
+    if (snd) snd.addEventListener('change', () => {
+      try {
+        const st = O.core && O.core().state && O.core().state.settings;
+        if (st) { st.pomoSound = !!snd.checked; O.core().save && O.core().save(); }
+      } catch (e) {}
+    });
+    return d;
+  }
+  function C() { return O.core && O.core(); }
+  function renderPomoPanel() {
+    const d = pomoEl(); if (!d) return;
+    const st = O.pomo ? O.pomo.status() : { state: 'idle', label: '25:00', total: 0, left: 25 * 60 };
+    const p = (O.ui && O.ui.pomodoro) || {};
+    const totalSec = p.totalSec || (st.state === 'focus' ? 25 * 60 : 5 * 60) || 25 * 60;
+    const pct = st.state === 'idle' ? 0 : Math.max(0, Math.min(1, 1 - (st.left / totalSec)));
+    const label = st.state === 'focus' ? 'Фокус' : st.state === 'break' ? 'Перерыв' : st.state === 'long' ? 'Длинный перерыв' : 'Готов';
+    const ring = d.querySelector('#ag-pomo-ring');
+    if (ring) {
+      ring.innerHTML = O.ring
+        ? O.ring(pct, 88, 7, `<b style="font-size:1.15rem">${st.label}</b><small>${label}</small>`)
+        : `<div style="text-align:center;font-size:1.2rem;font-weight:700">${st.label}<div style="font-size:.85rem;opacity:.7">${label}</div></div>`;
+    }
+    const meta = d.querySelector('#ag-pomo-meta');
+    if (meta) meta.innerHTML = `<span class="o-tag">${st.total || 0} сегодня</span><span class="o-muted">цикл ${st.cycle || 0}</span>`;
+    const acts = d.querySelector('#ag-pomo-acts');
+    if (acts) {
+      if (st.state === 'idle') {
+        acts.innerHTML = `<button type="button" class="btn btn-primary" data-pomo-act="start">Старт</button>`;
+      } else {
+        acts.innerHTML = `<button type="button" class="btn" data-pomo-act="pause">${p.paused ? 'Продолжить' : 'Пауза'}</button>
+          <button type="button" class="btn btn-secondary" data-pomo-act="reset">Сброс</button>`;
+      }
+    }
+    const sub = d.querySelector('#ag-pomo-sub');
+    if (sub) sub.textContent = st.state === 'idle' ? 'в чате · выберите длительность' : (label.toLowerCase() + ' · ' + st.label);
+  }
+  function syncPomoDock() {
+    const d = pomoEl(); if (!d) return;
+    const chat = (!O.assistant || !O.assistant.panel || O.assistant.panel === 'chat');
+    d.hidden = !(pomoDock.open && chat);
+    d.classList.toggle('min', !!pomoDock.min);
+    const m = d.querySelector('[data-pact="min"]'); if (m) m.textContent = pomoDock.min ? '▴' : '▾';
+    if (pomoDock.open && !pomoDock.min) renderPomoPanel();
+  }
+  I.openPomo = function (o) {
+    o = o || {};
+    try {
+      if (O.actions && O.actions.go) {
+        const tab = (window.OrbitCore && OrbitCore.tab) || (O.core && O.core().tab);
+        if (tab !== 'agent') O.actions.go('agent');
+      }
+      if (O.assistant && O.assistant.panel && O.assistant.panel !== 'chat') {
+        O.assistant.panel = 'chat';
+        O.assistant.render && O.assistant.render(false);
+      }
+      const d = pomoEl();
+      // если панель создалась вне чата — переносим внутрь
+      try {
+        const chat = document.querySelector('#ag-body .o-chat');
+        const msgs = document.getElementById('ag-msgs');
+        if (d && chat && msgs && !chat.contains(d)) {
+          msgs.parentNode.insertBefore(d, msgs);
+        }
+      } catch (e) {}
+      pomoDock.open = true; pomoDock.min = false;
+      if (o.mins && O.pomo) O.pomo.start(+o.mins);
+      else if (o.start && O.pomo) O.pomo.start(o.mins);
+      syncPomoDock();
+      if (_pomoUITimer) clearInterval(_pomoUITimer);
+      _pomoUITimer = setInterval(() => {
+        if (!pomoDock.open) { clearInterval(_pomoUITimer); _pomoUITimer = null; return; }
+        renderPomoPanel();
+      }, 1000);
+    } catch (e) { console.error('openPomo', e); }
+  };
+
+  /* Живая карточка помидора в ленте (как график) + опциональное закрепление */
+  I.pomoCard = function () {
+    const st = O.pomo ? O.pomo.status() : { state: 'idle', label: '25:00', total: 0, left: 25 * 60, cycle: 0 };
+    const p = (O.ui && O.ui.pomodoro) || {};
+    const totalSec = p.totalSec || 25 * 60;
+    const pct = st.state === 'idle' ? 0 : Math.max(0, Math.min(1, 1 - (st.left / totalSec)));
+    const label = st.state === 'focus' ? 'Фокус' : st.state === 'break' ? 'Перерыв' : st.state === 'long' ? 'Дл. перерыв' : 'Готов';
+    const ring = O.ring
+      ? O.ring(pct, 72, 6, `<b style="font-size:1rem">${st.label}</b><small style="font-size:.65rem">${label}</small>`)
+      : `<div style="text-align:center;font-weight:700">${st.label}<div style="font-size:.7rem;opacity:.7">${label}</div></div>`;
+    const acts = st.state === 'idle'
+      ? `<button type="button" class="btn btn-primary" data-pomo-act="start" style="min-height:32px;padding:4px 10px;font-size:.8rem">Старт</button>`
+      : `<button type="button" class="btn" data-pomo-act="pause" style="min-height:32px;padding:4px 10px;font-size:.8rem">${p.paused ? '▶' : 'Пауза'}</button>
+         <button type="button" class="btn btn-secondary" data-pomo-act="reset" style="min-height:32px;padding:4px 10px;font-size:.8rem">Сброс</button>`;
+    return `<div class="o-pomo-card" data-pomo-live="1">
+      <div class="o-pomo-row">
+        <div class="o-pomo-ring-lg">${ring}</div>
+        <div class="o-pomo-side">
+          <div class="o-pomo-meta"><span class="o-tag">${st.total || 0} сегодня</span><span class="o-muted">цикл ${st.cycle || 0}</span></div>
+          <div class="o-pomo-actions">${acts}</div>
+          <div class="o-pomo-presets">
+            <button type="button" class="o-chip" data-pomo="15">15</button>
+            <button type="button" class="o-chip" data-pomo="25">25</button>
+            <button type="button" class="o-chip" data-pomo="45">45</button>
+            <button type="button" class="o-chip" data-pomo="50">50</button>
+            <button type="button" class="o-chip" data-pomo="90">90</button>
+          </div>
+          <div class="o-pomo-extra">
+            <button type="button" class="o-chip" data-pomo-act="pin">📌 Закрепить</button>
+            <button type="button" class="o-chip" data-pact="focus">Фокус</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  /* делегирование кликов по карточкам в ленте */
+  if (!window._pomoCardBound) {
+    window._pomoCardBound = true;
+    document.addEventListener('click', e => {
+      const live = e.target.closest('[data-pomo-live]');
+      if (!live && !e.target.closest('#ag-pomo-dock')) return;
+      const pin = e.target.closest('[data-pomo-act="pin"]');
+      if (pin) {
+        if (O.inline && O.inline.openPomo) {
+          O.inline.openPomo({});
+          const d = document.getElementById('ag-pomo-dock');
+          if (d) { pomoDock.open = true; pomoDock.min = false; syncPomoDock(); }
+        }
+        return;
+      }
+      const act = e.target.closest('[data-pomo-act]');
+      if (act && live) {
+        const k = act.dataset.pomoAct;
+        if (k === 'start' && O.pomo) O.pomo.start();
+        if (k === 'pause' && O.pomo) O.pomo.pause();
+        if (k === 'reset' && O.pomo) O.pomo.reset();
+        // обновить все live-карточки
+        document.querySelectorAll('[data-pomo-live]').forEach(el => {
+          try { el.outerHTML = I.pomoCard(); } catch (err) {}
+        });
+        return;
+      }
+      const pr = e.target.closest('[data-pomo]');
+      if (pr && live) {
+        if (O.pomo) O.pomo.start(+pr.dataset.pomo);
+        document.querySelectorAll('[data-pomo-live]').forEach(el => {
+          try { el.outerHTML = I.pomoCard(); } catch (err) {}
+        });
+      }
+    });
+    // тик: обновлять live-карточки и закреплённый dock
+    setInterval(() => {
+      try {
+        if (!(O.ui && O.ui.pomodoro && O.ui.pomodoro.state !== 'idle')) return;
+        document.querySelectorAll('[data-pomo-live]').forEach(el => {
+          const card = I.pomoCard();
+          if (card) el.outerHTML = card;
+        });
+        if (pomoDock.open) renderPomoPanel();
+      } catch (e) {}
+    }, 1000);
+  }
+
+
+  /* ─── Карточка настроек / оформления в ленте агента ─── */
+  const LOOK_KEYS = [
+    { k: 'theme', label: 'Тема', type: 'seg', opts: [['dark','Тёмная'],['light','Светлая'],['amoled','AMOLED'],['auto','Система']] },
+    { k: 'font', label: 'Шрифт', type: 'seg', opts: [['system','Бренд'],['sans','Обычный'],['rounded','Округлый'],['serif','Засечки'],['mono','Моно'],['readable','Читаемый']] },
+    { k: 'textScale', label: 'Текст %', type: 'range', min: 85, max: 140, step: 5 },
+    { k: 'radius', label: 'Скругление', type: 'range', min: 4, max: 28, step: 2 },
+    { k: 'glass', label: 'Стекло', type: 'toggle' },
+    { k: 'motion', label: 'Анимации', type: 'seg', opts: [['full','Все'],['auto','Система'],['reduced','Меньше'],['off','Выкл']] },
+    { k: 'contrast', label: 'Контраст', type: 'seg', opts: [['normal','Обычный'],['high','Высокий']] },
+  ];
+  const AGENT_KEYS = [
+    { k: 'agentSuggest', label: 'Подсказки привычек', type: 'toggle' },
+    { k: 'voice', label: 'Голос', type: 'toggle' },
+    { k: 'pomoFocusMin', label: 'Помидор мин', type: 'range', min: 5, max: 90, step: 5 },
+    { k: 'pomoBreakMin', label: 'Перерыв мин', type: 'range', min: 1, max: 30, step: 1 },
+    { k: 'pomoSound', label: 'Звук помидора', type: 'toggle' },
+    { k: 'offlinePreload', label: 'Офлайн-загрузка', type: 'toggle' },
+    { k: 'agentMemCap', label: 'Память чата', type: 'range', min: 0, max: 5000, step: 50 },
+  ];
+
+  function _st() {
+    try { return (O.core && O.core().state && O.core().state.settings) || {}; } catch (e) { return {}; }
+  }
+  function _set(k, v) {
+    try {
+      const c = O.core && O.core(); if (!c || !c.state) return;
+      c.state.settings[k] = v;
+      if (c.save) c.save();
+      if (c.applyTheme) c.applyTheme();
+      if (O.look) O.look(c.state.settings);
+    } catch (e) { console.error('set', e); }
+  }
+  function _seg(k, opts, cur) {
+    return `<div class="o-set-row"><span class="o-set-lab">${esc(opts.find(o=>o[0]===k)?k:'')}</span></div>`;
+  }
+  I.settingsCard = function (section) {
+    section = section || 'look';
+    const st = _st();
+    const keys = section === 'agent' ? AGENT_KEYS : LOOK_KEYS;
+    const title = section === 'agent' ? 'Агент и помидор' : 'Оформление';
+    const rows = keys.map(it => {
+      const v = st[it.k];
+      if (it.type === 'seg') {
+        const chips = it.opts.map(([id, lab]) =>
+          `<button type="button" class="o-chip${String(v)===id?' on':''}" data-set="${it.k}" data-setv="${id}">${lab}</button>`).join('');
+        return `<div class="o-set-block"><div class="o-set-lab">${esc(it.label)}</div><div class="o-set-chips">${chips}</div></div>`;
+      }
+      if (it.type === 'range') {
+        const cur = v != null ? v : (it.k === 'textScale' ? 100 : it.k === 'radius' ? 14 : it.min);
+        return `<div class="o-set-block"><div class="o-set-lab">${esc(it.label)}: <b data-setlab="${it.k}">${cur}</b></div>
+          <input type="range" min="${it.min}" max="${it.max}" step="${it.step||1}" value="${cur}" data-set="${it.k}" data-set-range="1"/></div>`;
+      }
+      if (it.type === 'toggle') {
+        const on = v === true || v === 'high' || (it.k === 'voice' && v !== false) || (it.k === 'agentSuggest' && v !== false) || (it.k === 'pomoSound' && v !== false) || (it.k === 'glass' && v !== false);
+        return `<div class="o-set-block o-set-toggle"><label class="o-sw"><input type="checkbox" data-set="${it.k}" data-set-toggle="1" ${on?'checked':''}/><i></i><span>${esc(it.label)}</span></label></div>`;
+      }
+      return '';
+    }).join('');
+    return `<div class="o-settings-card" data-settings-live="${section}">
+      <div class="o-set-h"><b>${title}</b>
+        <button type="button" class="o-chip" data-set-sec="look">Стиль</button>
+        <button type="button" class="o-chip" data-set-sec="agent">Агент</button>
+        <button type="button" class="o-chip" data-ag="tab:settings">Все настройки</button>
+      </div>
+      ${rows}
+    </div>`;
+  };
+
+  if (!window._setCardBound) {
+    window._setCardBound = true;
+    document.addEventListener('click', e => {
+      const card = e.target.closest('[data-settings-live]');
+      if (!card) return;
+      const secBtn = e.target.closest('[data-set-sec]');
+      if (secBtn) {
+        card.outerHTML = I.settingsCard(secBtn.dataset.setSec);
+        return;
+      }
+      const chip = e.target.closest('[data-set]:not([data-set-range]):not([data-set-toggle])');
+      if (chip && chip.dataset.setv != null) {
+        _set(chip.dataset.set, chip.dataset.setv);
+        card.outerHTML = I.settingsCard(card.dataset.settingsLive);
+      }
+    });
+    document.addEventListener('change', e => {
+      const el = e.target;
+      if (!el.closest || !el.closest('[data-settings-live]')) return;
+      if (el.dataset.setToggle) {
+        _set(el.dataset.set, !!el.checked);
+      }
+    });
+    document.addEventListener('input', e => {
+      const el = e.target;
+      if (!el.dataset || !el.dataset.setRange) return;
+      if (!el.closest('[data-settings-live]')) return;
+      const v = +el.value;
+      _set(el.dataset.set, v);
+      const lab = el.closest('[data-settings-live]').querySelector('[data-setlab="'+el.dataset.set+'"]');
+      if (lab) lab.textContent = v;
+    });
+  }
+
+
+  I.closePomo = function () {
+    pomoDock.open = false;
+    if (_pomoUITimer) { clearInterval(_pomoUITimer); _pomoUITimer = null; }
+    syncPomoDock();
+  };
+  const _syncOld = I.sync;
+  I.sync = function () { try { if (_syncOld) _syncOld(); } catch (e) {} syncPomoDock(); };
+
 
   /* ═══════════ 2. ТЕКСТОВЫЕ НАВЫКИ КАЛЬКУЛЯТОРА ═══════════ */
   const K = I.calc = { last: null, hist: [] };

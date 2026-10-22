@@ -109,4 +109,36 @@
     window.OrbitReady = true;
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+
+/* FlowForge → агент: схема JSON / PNG */
+window.addEventListener('message', (e) => {
+  if (e.origin !== location.origin || !e.data || e.data.t !== 'ff-to-agent') return;
+  try {
+    const O = window.Orbit, A = O && O.assistant;
+    const name = e.data.name || 'Схема';
+    if (e.data.kind === 'json' && e.data.doc) {
+      O._lastScheme = { name, doc: e.data.doc, at: Date.now() };
+      if (A && A.push) {
+        A.push({ role: 'bot', text: 'Получена схема «' + name + '» из FlowForge (' + (e.data.doc.nodes || []).length + ' блоков).', buttons: [
+          { label: 'Открыть в редакторе', act: 'tab:flow' },
+          { label: 'Поделиться', act: 'cmd:поделись схемой' }
+        ]});
+      }
+      if (O.core && O.core().switchTab) O.core().switchTab('agent');
+      if (O.core && O.core().toast) O.core().toast('Схема «' + name + '» в агенте');
+    } else if (e.data.kind === 'png' && e.data.dataUrl) {
+      O._lastSchemePng = { name, dataUrl: e.data.dataUrl, at: Date.now() };
+      const card = '<div class="o-qr-box"><img src="' + e.data.dataUrl + '" alt="' + name + '" style="max-width:100%;border-radius:12px"/><p><b>' + name + '</b></p></div>';
+      if (A && A.push) {
+        A.push({ role: 'bot', text: 'PNG схемы «' + name + '».', cards: [card], buttons: [
+          { label: 'Скачать PNG', act: 'cmd:скачай схему png' },
+          { label: 'Поделиться', act: 'cmd:поделись схемой' }
+        ]});
+      }
+      if (O.core && O.core().switchTab) O.core().switchTab('agent');
+      if (O.core && O.core().toast) O.core().toast('PNG схемы в агенте');
+    }
+  } catch (err) { console.error('ff-to-agent', err); }
+});
+
 })();

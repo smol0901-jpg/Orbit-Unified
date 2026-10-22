@@ -12,7 +12,7 @@
     { id: 'insights', name: 'Контур заметил', on: true }, { id: 'daybar', name: 'Лента дня', on: true },
     { id: 'timeline', name: 'План дня', on: true }, { id: 'tasks', name: 'Задачи', on: true },
     { id: 'pack', name: 'Что взять', on: true }, { id: 'people', name: 'Близкие и звонки', on: true },
-    { id: 'reminders', name: 'Напоминания', on: true }, { id: 'week', name: 'Нагрузка недели', on: true }, { id: 'goals', name: 'Цели', on: true }
+    { id: 'reminders', name: 'Напоминания', on: true }, { id: 'week', name: 'Нагрузка недели', on: true }, { id: 'goals', name: 'Цели', on: true }, { id: 'pomodoro', name: 'Помидор / Концентрация', on: true }
   ];
   O.widgetList = () => {
     const saved = S().settings.widgets, base = O.WIDGETS.map(w => ({ ...w }));
@@ -49,7 +49,13 @@
       return `<div class="o-hero" data-act="open:${n.type}:${n.id}"><div class="o-hero-main"><div class="o-label">${first ? 'Первая встреча' : 'Пауза · дальше'}</div><div class="o-hero-title">${esc(n.title)}</div><div class="o-hero-sub">В ${n.start}${n.place ? ' · ' + esc(n.place) : ''}${n.teacher ? ' · ' + esc(n.teacher) : ''}</div><div class="o-hero-next">Через ${left(nn.wait)}</div></div>${O.ring(first ? 0 : Math.max(0, 1 - nn.wait / 20), 92, 8, ringIn)}</div>`;
     }
     const total = ev.list.reduce((a, e) => a + (e.e - e.s), 0);
-    return `<div class="o-hero o-hero-done"><div class="o-hero-main"><div class="o-label">День завершён</div><div class="o-hero-title">Встречи закончились</div><div class="o-hero-sub">Сегодня: ${ev.list.length} ${O.plural(ev.list.length, 'встреча', 'встречи', 'встреч')} · ${E.dur(total)}</div></div><div class="o-hero-ic">${ic('check', 44, 1.6)}</div></div>`;
+    const meets = ev.list.filter(e => e.type === 'lesson' || !e.type).length;
+    const blocks = ev.list.length - meets;
+    let cnt = '';
+    if (meets && blocks) cnt = `${meets} ${O.plural(meets, 'встреча', 'встречи', 'встреч')} + ${blocks} ${O.plural(blocks, 'блок', 'блока', 'блоков')}`;
+    else if (meets) cnt = `${meets} ${O.plural(meets, 'встреча', 'встречи', 'встреч')}`;
+    else cnt = `${blocks} ${O.plural(blocks, 'блок', 'блока', 'блоков')}`;
+    return `<div class="o-hero o-hero-done"><div class="o-hero-main"><div class="o-label">День завершён</div><div class="o-hero-title">Встречи закончились</div><div class="o-hero-sub">Сегодня: ${cnt} · ${E.dur(total)}</div></div><div class="o-hero-ic">${ic('check', 44, 1.6)}</div></div>`;
   };
 
   const optPill = (o, i) => `<span class="o-opt${i === 0 ? ' best' : ''}"><b>${esc(o.time)}</b>${o.number ? ' №' + esc(o.number) : ''}<small>выйти ${E.fmt(o.leaveBy)}</small></span>`;
@@ -170,15 +176,45 @@
   };
 
   W.goals = now => {
-    const g = [...S().goals].filter(x => (x.progress || 0) < 100).sort((a, b) => (a.deadline || '9').localeCompare(b.deadline || '9')).slice(0, 3); if (!g.length) return null;
+    const seen = new Set(); const g = [...S().goals].filter(x => (x.progress || 0) < 100).filter(x => { const k = String(x.title||'').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }).sort((a, b) => (a.deadline || '9').localeCompare(b.deadline || '9')).slice(0, 3); if (!g.length) return null;
     return `<div class="o-card"><div class="o-card-h">${ic('target', 18)}<h3>Цели</h3><button class="o-link" data-act="tab:tasks">Все</button></div><ul class="o-goals">${g.map(x => { const d = x.deadline ? Math.round((new Date(x.deadline + 'T00:00:00') - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 864e5) : null; return `<li><div><b>${esc(x.title)}</b><small>${d == null ? '' : d < 0 ? 'срок прошёл' : d === 0 ? 'сегодня' : 'ещё ' + d + ' дн.'}</small></div><div class="o-bar"><i style="width:${x.progress || 0}%"></i></div></li>`; }).join('')}</ul></div>`;
+  };
+
+  W.pomodoro = now => {
+    const p = (O.pomo && O.ui && O.ui.pomodoro) ? O.ui.pomodoro : (O.ui && O.ui.pomodoro) || { state: 'idle', left: 25*60, totalSec: 25*60, cycle: 0, total: 0 };
+    const mm = String(Math.floor(p.left / 60)).padStart(2, '0');
+    const ss = String(p.left % 60).padStart(2, '0');
+    const label = p.state === 'focus' ? 'Фокус' : p.state === 'break' ? 'Перерыв' : p.state === 'long' ? 'Длинный перерыв' : 'Готов к работе';
+    const dur = p.totalSec || (p.state === 'focus' ? 25*60 : p.state === 'long' ? 15*60 : 5*60) || 25*60;
+    const pct = p.state === 'idle' ? 0 : Math.max(0, Math.min(1, 1 - (p.left / dur)));
+    const presets = [15, 25, 45, 50].map(m => `<button class="o-chip" data-act="pomo:start:${m}">${m} мин</button>`).join('');
+    return `<div class="o-card o-pomo"><div class="o-card-h">${ic('timer', 18)}<h3>Помидор</h3><span class="o-tag">${p.total || 0} сегодня</span></div>
+      <div class="o-pomo-body">
+        <div class="o-pomo-ring">${O.ring ? O.ring(pct, 72, 6, `<b>${mm}:${ss}</b><small>${label}</small>`) : `<b>${mm}:${ss}</b>`}</div>
+        <div class="o-pomo-actions">
+          ${p.state === 'idle'
+            ? `<button class="btn btn-primary" data-act="pomo:start">Старт</button>`
+            : `<button class="btn" data-act="pomo:pause">${p.paused ? 'Продолжить' : 'Пауза'}</button><button class="btn btn-secondary" data-act="pomo:reset">Сброс</button>`}
+        </div>
+      </div>
+      ${p.state === 'idle' ? `<div class="o-pomo-presets">${presets}</div>` : ''}
+      <p class="hint">Настраивается в Настройках · голос: «начни помидор 45»</p>
+    </div>`;
   };
 
   /* ───────── сборка экрана ───────── */
   function greeting(now) {
     const h = now.getHours(), part = h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер', s = S(), ev = E.eventsOn(s, now), br = O.brand();
     const chips = []; if (s.profile.className) chips.push(`${ic('school', 14)} ${esc(s.profile.className)}`);
-    if (ev.list.length) chips.push(`${ic('book', 14)} ${ev.list.length} ${O.plural(ev.list.length, 'встреча', 'встречи', 'встреч')}`);
+    if (ev.list.length) {
+      const meets = ev.list.filter(e => e.type === 'lesson' || !e.type).length;
+      const blocks = ev.list.length - meets;
+      let txt = '';
+      if (meets && blocks) txt = `${meets} ${O.plural(meets, 'встреча', 'встречи', 'встреч')} + ${blocks} ${O.plural(blocks, 'блок', 'блока', 'блоков')}`;
+      else if (meets) txt = `${meets} ${O.plural(meets, 'встреча', 'встречи', 'встреч')}`;
+      else txt = `${blocks} ${O.plural(blocks, 'блок', 'блока', 'блоков')}`;
+      chips.push(`${ic('book', 14)} ${txt}`);
+    }
     const hol = E.nextHoliday(s, now); if (hol && !hol.active && hol.days <= 21) chips.push(`${ic('sun', 14)} отпуск через ${hol.days} дн.`);
     return `<div class="o-greet"><div><div class="o-hello">${part}${s.profile.name ? ', ' + esc(s.profile.name) : ''}</div><div class="o-date">${DAYF[E.dayIdx(now)]}, ${now.getDate()} ${MONTHS[now.getMonth()]}</div></div><div class="o-gchips">${chips.map(c => `<span>${c}</span>`).join('')}</div></div>`;
   }
@@ -209,6 +245,15 @@
       case 'install': O.install && O.install(); break;
       case 'share': core.switchTab('share'); if (r[0]) O.share.preset(r[0]); break;
       case 'brand': { s.settings.brand = r[0]; core.save(); core.applyTheme(); core.render(); break; }
+      case 'pomo': {
+        if (O.pomo) {
+          if (r[0] === 'start') O.pomo.start(r[1] || undefined);
+          else if (r[0] === 'pause') O.pomo.pause();
+          else if (r[0] === 'reset') O.pomo.reset();
+        }
+        O.renderDash();
+        break;
+      }
     }
   };
   document.addEventListener('click', e => {

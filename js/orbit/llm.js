@@ -8,10 +8,10 @@
     llm7: {
       id: 'llm7',
       name: 'LLM7.io (бесплатно, без ключа)',
-      hint: 'Селектор fast/default работает без ключа. Конкретные модели (gemma4 и др.) часто требуют бесплатный токен с dash.llm7.io. Лимит ~10 req/min анонимно.',
+      hint: 'Анонимный OpenAI-совместимый endpoint. Ключ можно оставить «unused» или пустым. Лимит ~10 req/min.',
       chatUrl: 'https://api.llm7.io/v1/chat/completions',
-      models: ['fast', 'default', 'mistral-Nemo-Instruct-2407', 'codestral-latest', 'minimax-m2.7', 'gpt-oss:20b', 'gemma4:31b'],
-      defaultModel: 'fast',
+      models: ['gpt-oss', 'gemma4:31b', 'minimax-m2.7', 'codestral-latest', 'mistral-Nemo-Instruct-2407'],
+      defaultModel: 'gpt-oss',
       needsOAuth: false,
       free: true,
       noKey: true
@@ -221,17 +221,13 @@ ${ctx ? ('Контекст данных (используй при ответе,
   }
 
   async function chatOpenAI(url, token, model, system, user) {
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
-    // Для бесплатных (LLM7 и т.п.) без ключа не шлём Authorization — иначе 401 на части моделей
-    if (token && String(token).trim() && String(token).trim().toLowerCase() !== 'unused') {
-      headers['Authorization'] = 'Bearer ' + String(token).trim();
-    }
     const res = await fetch(url, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
       body: JSON.stringify({
         model,
         messages: [
@@ -300,7 +296,7 @@ ${ctx ? ('Контекст данных (используй при ответе,
         res = await chatClaude(url, c.key, model, system, userText);
       } else {
         // Бесплатные провайдеры (llm7 и т.п.) работают без ключа или с «unused»
-        const token = (p.noKey || p.free) ? (c.key || '') : c.key;
+        const token = (p.noKey || p.free) ? (c.key || 'unused') : c.key;
         if (!p.noKey && !p.free && !token) return { ok: false, error: 'Нужен API Key.' };
         if (!url) return { ok: false, error: 'Не указан endpoint.' };
         res = await chatOpenAI(url, token, model, system, userText);
@@ -329,6 +325,12 @@ ${ctx ? ('Контекст данных (используй при ответе,
     }
   };
 
+  O.llmOnLimit = function () {
+    try {
+      const st = (O.core && O.core().state && O.core().state.settings) || {};
+      return !!(st._llmLimitHit && Date.now() - st._llmLimitHit < 15 * 60000);
+    } catch (e) { return false; }
+  };
   O.llmReady = function () {
     const c = cfg();
     if (!c.enabled) return false;
@@ -400,9 +402,9 @@ ${ctx ? ('Контекст данных (используй при ответе,
       }
       add('creds', 'API Key', true, 'Задан');
     } else if (p.noKey || p.free) {
-      // LLM7 и аналоги — без ключа
-      add('creds', 'API Key', true, 'Не нужен (бесплатный провайдер)');
-      const url = chatUrl(c) || p.chatUrl;
+      // LLM7 и аналоги — ключ не нужен
+      add('creds', 'API Key', true, 'Не требуется (бесплатный провайдер)');
+      const url = chatUrl(c);
       if (!url) {
         add('endpoint', 'Endpoint', false, 'Нет URL. Выберите пресет ещё раз.');
         return { ok: false, steps, summary: 'Нет endpoint.' };
@@ -462,8 +464,14 @@ ${ctx ? ('Контекст данных (используй при ответе,
           detail = 'Ключ или токен отклонён (401). Проверьте API Key / переполучите OAuth. ' + detail;
         else if (/404/i.test(detail))
           detail = 'Неверный URL endpoint (404). Выберите пресет заново. ' + detail;
-        else if (/429/i.test(detail))
-          detail = 'Слишком много запросов (429). Подождите минуту.';
+        else if (/429|rate.?limit|quota|resource.?exhausted|too many requests/i.test(detail)) {
+          detail = 'Лимиты нейросети исчерпаны (429/quota). Подождите или переключитесь на локальную модель (когда подключена).';
+          try {
+            const st = (O.core && O.core().state && O.core().state.settings) || {};
+            st._llmLimitHit = Date.now();
+            if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('orbit-llm-limit', { detail: { msg: detail } }));
+          } catch (e) {}
+        }
         add('chat', 'Пробный запрос к модели', false, detail);
         return { ok: false, steps, summary: 'Модель не ответила — см. шаг «Пробный запрос».' };
       }

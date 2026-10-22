@@ -52,12 +52,65 @@
   /* ───── карточки ───── */
   const busCard = (o, i, mode) => `<div class="o-bopt${i === 0 ? ' best' : ''}"><div class="o-bus-no">№${esc(o.number || '—')}</div><div class="o-bopt-b"><div class="o-bopt-t">${esc(o.time)}${i === 0 ? '<em>лучший</em>' : ''}</div><div class="o-bopt-m">Выйти в <b>${E.fmt(o.leaveBy)}</b> · запас ${left(Math.max(0, o.slack))} · ${mode === 'school' ? 'на работе' : 'дома'} ≈ ${E.fmt(o.arrive)}</div></div></div>`;
   const personCard = (p, text) => { const ph = phoneOf(p); return `<div class="o-pcard">${O.avatar(p, 46)}<div class="o-pcard-t"><b>${esc(p.name)}</b><span>${esc(p.relation || '')}${p.phone ? ' · ' + esc(p.phone) : ''}</span></div>${ph ? `<a class="o-act call" href="tel:${esc(ph)}" data-call="${p.id}">${ic('phone', 18)}<span>Позвонить</span></a><a class="o-act" href="${esc(smsHref(p, text || ''))}" data-call="${p.id}">${ic('message', 18)}<span>SMS</span></a>` : `<button class="o-btn ghost sm" data-act="person:${p.id}">Добавить номер</button>`}</div>`; };
-  const evList = list => `<div class="o-mini-list">${list.map(e => `<div><b>${e.start}–${e.end}</b><span>${esc(e.title)}${e.place ? ' · ' + esc(e.place) : ''}</span></div>`).join('')}</div>`;
+  const evList = list => glassTable('Расписание', list.map(e => ({
+    left: (e.start || '') + (e.end ? '–' + e.end : ''),
+    title: e.title || '—',
+    meta: e.place || ''
+  })));
+  /* Стеклянные карточки-таблицы для задач, целей, планов, напоминаний */
+  function glassTable(title, rows, opts) {
+    opts = opts || {};
+    if (!rows || !rows.length) {
+      return `<div class="o-glass-card"><div class="o-glass-h"><span>${esc(title)}</span></div><div class="o-glass-empty">${esc(opts.empty || 'Пусто')}</div></div>`;
+    }
+    const body = rows.map((r, i) => {
+      const bar = r.pct != null ? `<div class="o-glass-bar"><i style="width:${Math.max(0, Math.min(100, +r.pct))}%"></i></div>` : '';
+      return `<div class="o-glass-row" style="--i:${i}">
+        <div class="o-glass-left">${esc(r.left || '')}</div>
+        <div class="o-glass-main"><div class="o-glass-title">${esc(r.title || '')}</div>${r.meta ? `<div class="o-glass-meta">${esc(r.meta)}</div>` : ''}${bar}</div>
+        ${r.right != null ? `<div class="o-glass-right">${esc(String(r.right))}</div>` : ''}
+      </div>`;
+    }).join('');
+    return `<div class="o-glass-card"><div class="o-glass-h"><span>${esc(title)}</span>${opts.count != null ? `<em>${opts.count}</em>` : ''}</div><div class="o-glass-body">${body}</div></div>`;
+  }
+
+  A.glassTable = glassTable;
+  /* Markdown-lite + стекло для любого многострочного ответа */
+  function fmtBotText(text) {
+    if (text == null || text === '') return '';
+    let t = String(text);
+    // если уже HTML-карточка — не трогаем
+    if (/^\s*</.test(t) && /o-glass|o-help|o-pcard|o-acard/.test(t)) return t;
+    const escH = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // **bold**
+    let html = escH(t).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    const lines = html.split(/\n/);
+    const multi = lines.length > 1 || t.length > 120 || /^[•\-\*]/.test(t.trim()) || t.includes('•');
+    if (!multi) return html.replace(/\n/g, '<br>');
+    // группируем: заголовок + список / абзацы
+    let body = '', inList = false;
+    lines.forEach(line => {
+      const L = line.trim();
+      if (/^([•\-\*]|\d+\.)\s+/.test(L)) {
+        if (!inList) { body += '<ul class="o-glass-ul">'; inList = true; }
+        body += '<li>' + L.replace(/^([•\-\*]|\d+\.)\s+/, '') + '</li>';
+      } else {
+        if (inList) { body += '</ul>'; inList = false; }
+        if (!L) body += '<div class="o-glass-gap"></div>';
+        else body += '<p class="o-glass-p">' + L + '</p>';
+      }
+    });
+    if (inList) body += '</ul>';
+    return '<div class="o-glass-md">' + body + '</div>';
+  }
+  A.fmtBotText = fmtBotText;
+
+
 
   /* ───── ответ: единый формат ───── */
   const R = (text, extra = {}) => Object.assign({ role: 'bot', text, cards: [], buttons: [] }, extra);
   const btn = (label, act) => ({ label, act });
-  const sug = () => [btn('Что дальше', 'cmd:что дальше'), btn('Когда выходить', 'cmd:когда выходить'), btn('Добавь задачу', 'cmd:добавь задачу'), btn('Помощь', 'cmd:помощь')];
+  const sug = () => [btn('Что дальше', 'cmd:что дальше'), btn('Когда автобус домой', 'cmd:когда автобус домой'), callBtn()];
 
   /* изменение с подтверждением/отменой */
   function change(text, doFn, undoFn, extra) {
@@ -67,16 +120,28 @@
     return R('Выполнить? ' + text, { buttons: [btn('Да', 'ag:yes:' + id), btn('Нет', 'ag:no:' + id)] });
   }
 
-  /* ───── облако: полная переписка в Supabase (до 100 МБ); локально храним окно 300 сообщений ───── */
+  /* ───── облако: полная переписка в Supabase; локально — окно из настроек (agentMemCap, 0 = без лимита) ───── */
   const memPush = m => { try { if (O.cloud && O.cloud.logged()) O.cloud.pushMsg(m); } catch (e) {} };
+  function memCap() {
+    try {
+      const v = +(S().settings && S().settings.agentMemCap);
+      if (v === 0) return 0; // без лимита
+      if (Number.isFinite(v) && v > 0) return Math.min(50000, Math.max(50, v));
+    } catch (e) {}
+    return 300;
+  }
   function trimLocalMem() {
     try {
       if (!mem.msgs) mem.msgs = [];
-      mem.msgs = A.msgs.filter(x => x.role === 'user' || x.role === 'bot').map(x => ({ role: x.role, text: String(x.text || '').slice(0, 2000), at: x.at })).slice(-LOCAL_MEM_CAP);
+      const cap = memCap();
+      let arr = A.msgs.filter(x => x.role === 'user' || x.role === 'bot').map(x => ({ role: x.role, text: String(x.text || '').slice(0, 2000), at: x.at }));
+      if (cap > 0) arr = arr.slice(-cap);
+      mem.msgs = arr;
       saveMem();
     } catch (e) {}
   }
-  const LOCAL_MEM_CAP = 300;
+  const LOCAL_MEM_CAP = () => memCap(); // совместимость
+
 
   /* ───── интенты ───── */
   const INT = [];
@@ -103,14 +168,55 @@
     if (/открой|открыть|перейди/.test(n)) { O.actions.go('calc'); return R('Открыл CIFRA Pro.', { buttons: [btn('Калькулятор', 'tab:calc')] }); }
     let expr = t.replace(/^(посчитай|вычисли|сколько\s*будет)\s*/i, '').replace(/[=\s]+$/,' ').trim();
     if (/^калькулятор|^cifra/.test(n) && !/[\d(]/.test(expr)) {
-      O.actions.go('calc');
-      return R('Открыл калькулятор CIFRA Pro.\n' + (O.tools ? O.tools.helpTools() : ''), { buttons: [btn('Калькулятор', 'tab:calc'), btn('Справка инструментов', 'cmd:помощь инструменты')] });
+      if (O.inline && O.inline.openCalc) O.inline.openCalc({});
+      else if (O.actions && O.actions.go) O.actions.go('calc');
+      return R('Калькулятор в контейнере чата.', { buttons: [btn('Конвертер', 'cmd:калькулятор конвертер'), btn('Финансы', 'cmd:калькулятор финансы')] });
     }
     if (!expr || !/[\d(xπpie]/.test(expr)) return R('Напишите выражение, например: «посчитай 12*8+5» или «sqrt(144)».', { buttons: [btn('Открыть CIFRA', 'tab:calc')] });
+    // Guard: телефоны, даты, процентные фразы — не выражения
+    if (/^[\s+()\-]*\+?\d[\d\s()\-]{6,}\d\s*$/.test(expr) || /^\+?\d{10,15}$/.test(expr.replace(/[\s()\-]/g,''))) {
+      return R('Это похоже на номер телефона, а не на математическое выражение. Напишите «посчитай 12*8», если нужен расчёт.');
+    }
+    if (/\d{1,2}[./]\d{1,2}([./]\d{2,4})?/.test(expr) && !/[\+\-\*\/^]/.test(expr)) {
+      return R('Похоже на дату. Скажите «дней между 01.03 и 15.05» или «сколько дней до 31.12».');
+    }
+    if (/сколько\s+процент|какой\s+процент|%\s*от/i.test(t) && !/[\+\-\*\/]/.test(expr)) {
+      // let specialized percent skills handle it; if we reached here, rephrase
+      return R('Для процентов лучше: «сколько процентов 30 от 200» или «15% от 2000».');
+    }
     const r = O.tools ? O.tools.calc(expr) : { ok: false, error: 'tools не загружен' };
     if (!r.ok) return R('Не смог посчитать «' + expr + '»: ' + (r.error || ''), { buttons: [btn('Открыть CIFRA', 'tab:calc')] });
     return R(r.expr + ' = **' + r.text + '**', { buttons: [btn('Открыть CIFRA', 'tab:calc'), btn('Ещё пример', 'cmd:посчитай sin(30)')] });
   }, 'calc');
+
+  // 0b1) даты: дней между / до (fallback если inline не сработал)
+  on(/^(?:сколько\s+)?(?:дней|дни)\s+между\s+(.+?)\s+и\s+(.+?)\s*\??$/i, (t, n) => {
+    const m = n.match(/(?:дней|дни)\s+между\s+(.+?)\s+и\s+(.+?)$/);
+    if (!m) return R('Формат: «дней между 01.03 и 15.05».');
+    const parse = (str) => {
+      str = str.trim();
+      let x = str.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/);
+      if (x) { let y = x[3] ? +x[3] : new Date().getFullYear(); if (y < 100) y += 2000; return new Date(y, +x[2]-1, +x[1]); }
+      return null;
+    };
+    const a = parse(m[1]), b = parse(m[2]);
+    if (!a || !b || isNaN(a) || isNaN(b)) return R('Не разобрал даты. Пример: «дней между 01.03 и 15.05».');
+    const k = Math.abs(Math.round((b - a) / 864e5));
+    return R('Между ' + m[1].trim() + ' и ' + m[2].trim() + ': ' + k + ' ' + O.plural(k, 'день', 'дня', 'дней') + '.');
+  }, 'dates-between');
+  on(/^(?:сколько\s+)?(?:дней|дни|осталось дней)\s+до\s+(.+?)\s*\??$/i, (t, n) => {
+    const m = n.match(/(?:дней|дни|осталось дней)\s+до\s+(.+)$/);
+    if (!m) return R('Формат: «сколько дней до 31.12».');
+    const str = m[1].trim();
+    let x = str.match(/^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/);
+    if (!x) return R('Не разобрал дату. Пример: «сколько дней до 31.12».');
+    let y = x[3] ? +x[3] : new Date().getFullYear(); if (y < 100) y += 2000;
+    let d = new Date(y, +x[2]-1, +x[1]);
+    const now = new Date(); const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (!x[3] && d < today) d = new Date(y + 1, +x[2]-1, +x[1]);
+    const k = Math.round((d - today) / 864e5);
+    return R('До ' + str + ': ' + k + ' ' + O.plural(k, 'день', 'дня', 'дней') + '.');
+  }, 'dates-until');
 
   // 0b2) маршруты: метро / работа / дом
   on(/(добавь\s+маршрут|маршрут\s+(?:из\s+)?дом|до\s+работы|метро\s+\S+)/i, (t, n) => {
@@ -187,11 +293,18 @@
   on(/(что\s*(было|говорили|обсуждали|делали)|вспомни|покажи\s*память|история\s*чат|что\s*мы\s*(писали|говорили)).*(вчера|сегодня|позавчера|недел|месяц)?|(вчера|на\s*прошлой\s*неделе|позавчера).*(что|говорил|писал|было)?/i, (t, n) => {
     const q = O.work ? O.work.queryMemory(mem, n || t) : { empty: true, count: 0, total: 0, lines: [], title: '' };
     if (q.empty) {
-      return R('В памяти ' + (q.total || 0) + ' сообщений. За период «' + (q.title || 'запрос') + '» ничего не нашёл. Пишите в чат — я храню до 300 реплик.', {
+      return R('В памяти ' + (q.total || 0) + ' сообщений. За период «' + (q.title || 'запрос') + '» ничего не нашёл. Пишите в чат — лимит памяти настраивается.', {
         buttons: [btn('Что ты помнишь', 'cmd:что ты помнишь'), btn('Справка', 'cmd:помощь')]
       });
     }
-    return R('Память ' + q.title + ': ' + q.count + ' сообщ. (всего в архиве ' + q.total + '):\n' + q.lines.join('\n'), {
+    const rows = (q.lines || []).map(line => {
+      const m = String(line).match(/^\s*[·•\-]?\s*(.+?)\s*[—–-]\s*(Вы|Орби|Бот|Агент)\s*:\s*([\s\S]+)$/i)
+        || String(line).match(/^\s*(.+?)\s*[—–-]\s*(Вы|Орби)\s*:\s*([\s\S]+)$/i);
+      if (m) return { left: m[1].trim(), title: m[3].trim(), meta: m[2] };
+      return { left: '', title: String(line).replace(/^[·•\-]\s*/, ''), meta: '' };
+    });
+    return R('Память **' + (q.title || '') + '**: ' + q.count + ' сообщ. (в архиве ' + q.total + ').', {
+      cards: [glassTable('Память · ' + (q.title || ''), rows, { count: q.count })],
       buttons: [btn('Сегодня', 'cmd:что было сегодня'), btn('Вчера', 'cmd:что было вчера'), btn('Прошлая неделя', 'cmd:что было на прошлой неделе')]
     });
   }, 'recall');
@@ -208,20 +321,30 @@
     const ready = O.llmReady && O.llmReady();
     const s = S().settings || {};
     const prov = s.llmProvider || '—';
-    let msg = 'Я умею:\n• маршруты и «когда выходить»\n• задачи, встречи, напоминания\n• звонки и SMS\n• калькулятор и графики\n• схемы FlowForge\n• память переписки';
-    if (ready) {
-      msg += '\n\nНейросеть **включена** (провайдер: ' + prov + '). Можно спрашивать свободнее.';
-    } else {
-      msg += '\n\nНейросеть сейчас выключена. Включи в Настройках → Агент → «Запросы к нейросети по API» и выбери LLM7 (бесплатно без ключа).';
-    }
-    return R(msg, {
+    const skills = [
+      { left: '🚌', title: 'Маршруты', meta: 'когда выходить, автобус домой' },
+      { left: '✅', title: 'Задачи и встречи', meta: 'список, добавление, перенос' },
+      { left: '🔔', title: 'Напоминания', meta: 'через N мин, список' },
+      { left: '📞', title: 'Звонки и SMS', meta: 'позвони, напиши' },
+      { left: '🔢', title: 'Калькулятор и графики', meta: 'в чате' },
+      { left: '📐', title: 'Схемы FlowForge', meta: 'мастер в чате' },
+      { left: '🧠', title: 'Память', meta: 'что было вчера / на неделе' },
+      { left: '🍅', title: 'Помидор', meta: 'фокус, концентрация' },
+    ];
+    let foot = ready
+      ? 'Нейросеть **включена** (провайдер: ' + prov + '). Можно спрашивать свободнее.'
+      : 'Нейросеть выключена. Настройки → Агент → «Запросы к нейросети по API» (например LLM7).';
+    return R('Мои навыки', {
+      cards: [glassTable('Навыки', skills), '<div class="o-glass-md"><p class="o-glass-p">' + foot.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') + '</p></div>'],
       buttons: [
         btn('Что дальше', 'cmd:что дальше'),
         btn('Когда выходить', 'cmd:когда выходить'),
-        btn('Настройки агента', 'tab:settings')
+        btn('Помидор', 'cmd:помидор'),
+        btn('Настройки агента', 'cmd:настройки агента')
       ]
     });
   }, 'help-full');
+
 
 
   // 1) «я освободился» → ближайший автобус ОТ СЕЙЧАС (или от указанного времени), не от конца уроков
@@ -313,14 +436,41 @@
     return R('Встречи на сегодня закончились.', { buttons: [btn('Автобус домой', 'cmd:я освободился')] });
   }, 'now');
 
-  // 4) расписание дня / окончание уроков
-  on(/(когда|во сколько)\s+(закан|конч)[а-яёa-z0-9_]*\s+(уроки|занят[а-яёa-z0-9_]*|школа|день)|расписание\s+(на\s+)?(сегодня|завтра|послезавтра|\S+)|(что|какие)\s+(уроки\s+)?(сегодня|завтра|послезавтра|в (понедельник|вторник|среду|четверг|пятницу|субботу))|^уроки\s+(на\s+|в\s+)?(сегодня|завтра|послезавтра|понедельник|вторник|среду|четверг|пятницу|субботу)/, (t, n, now) => {
-    const day = dayIn(n, now) || { d: now, label: 'сегодня' }, ev = E.eventsOn(S(), day.d);
-    if (ev.holiday) return R(`На ${day.label} — отпуск «${ev.holiday.name}».`);
-    if (!ev.list.length) return R(`На ${day.label} встреч нет.`);
-    const les = ev.list.filter(e => e.type !== 'event'), end = Math.max(...(les.length ? les : ev.list).map(e => e.e));
-    if (/(закан|конч)/.test(n)) return R(`${day.label[0].toUpperCase() + day.label.slice(1)} встречи заканчиваются в ${E.fmt(end)}.`, { cards: [evList(ev.list)], buttons: [btn('Маршрут после встреч', 'cmd:я освобожусь в ' + E.fmt(end))] });
-    return R(`Расписание на ${day.label}: ${ev.list.length} ${O.plural(ev.list.length, 'встреча', 'встречи', 'встреч')}, с ${ev.list[0].start} до ${E.fmt(end)}.`, { cards: [evList(ev.list)], buttons: [btn('Что взять', 'cmd:что взять ' + day.label)] });
+  // 4) расписание дня / планы / «что у меня» (НЕ создание встречи)
+  on(/(когда|во сколько)\s+(закан|конч)[а-яёa-z0-9_]*\s+(уроки|занят[а-яёa-z0-9_]*|школа|день)|расписание\s+(на\s+)?(сегодня|завтра|послезавтра|\S+)|(что|какие)\s+(уроки\s+)?(сегодня|завтра|послезавтра|в (понедельник|вторник|среду|четверг|пятницу|субботу))|^уроки\s+(на\s+|в\s+)?(сегодня|завтра|послезавтра|понедельник|вторник|среду|четверг|пятницу|субботу)|(что|какие)\s+(у\s+меня\s+)?(планы?|дела|встреч[аиы]?|событи[яе]|расписание|на\s+день)|(что|какие)\s+у\s+меня\s+(завтра|сегодня|послезавтра|вечером)|планы?\s+на\s+(сегодня|завтра|послезавтра|вечер|день)|что\s+(завтра|сегодня)\s+(вечером|днём|утром)|какие\s+планы|что\s+по\s+планам|мой\s+день\s+(завтра|сегодня)/i, (t, n, now) => {
+    // Не перехватывать явные команды добавления
+    if (/(добавь|добавить|создай|создать|запиши|запланируй\s+встречу|новый\s+урок)/i.test(n)) return null;
+    const day = dayIn(n, now) || { d: now, label: 'сегодня' };
+    let list = E.eventsOn(S(), day.d).list || [];
+    const wantEve = /вечер/i.test(n);
+    const wantMorn = /утр/i.test(n);
+    const wantDay = /днём|днем/i.test(n);
+    if (wantEve) list = list.filter(e => {
+      const m = String(e.start || '').match(/(\d{1,2})/);
+      return m ? +m[1] >= 17 : true;
+    });
+    if (wantMorn) list = list.filter(e => {
+      const m = String(e.start || '').match(/(\d{1,2})/);
+      return m ? +m[1] < 12 : true;
+    });
+    if (wantDay) list = list.filter(e => {
+      const m = String(e.start || '').match(/(\d{1,2})/);
+      return m ? (+m[1] >= 12 && +m[1] < 17) : true;
+    });
+    const period = wantEve ? 'вечером' : wantMorn ? 'утром' : wantDay ? 'днём' : '';
+    const label = day.label + (period ? ' ' + period : '');
+    if (E.eventsOn(S(), day.d).holiday) return R(`На ${day.label} — отпуск «${E.eventsOn(S(), day.d).holiday.name}».`);
+    if (!list.length) {
+      return R(`На ${label} встреч нет.` + (period ? ' (по выбранному времени суток)' : ''), {
+        buttons: [btn('Весь день', 'cmd:расписание на ' + day.label), btn('Добавить встречу', 'cmd:добавь встречу'), btn('Расписание', 'tab:schedule')]
+      });
+    }
+    const end = Math.max(...list.map(e => e.e));
+    if (/(закан|конч)/.test(n)) return R(`${day.label[0].toUpperCase() + day.label.slice(1)} встречи заканчиваются в ${E.fmt(end)}.`, { cards: [evList(list)], buttons: [btn('Маршрут после встреч', 'cmd:я освобожусь в ' + E.fmt(end))] });
+    return R(`На ${label}: ${list.length} ${O.plural(list.length, 'встреча', 'встречи', 'встреч')}, с ${list[0].start} до ${E.fmt(end)}.`, {
+      cards: [evList(list)],
+      buttons: [btn('Что взять', 'cmd:что взять ' + day.label), btn('Расписание', 'tab:schedule'), btn('Добавить', 'cmd:добавь встречу')]
+    });
   }, 'day');
 
   // 5) звонок / SMS
@@ -398,20 +548,32 @@
   function whoFocus(verb, tries, text) {
     focusSet('who', { verb, tries }, (t, n) => {
       if (F_NO.test(n)) { focusClear(); return R(verb === 'sms' ? 'Ок, не пишу.' : 'Ок, не звоню.'); }
-      if (findPeople(t).length) { focusClear(); return contact(t, verb, text); }
-      if (looksLikeCommand(t)) return null;
-      focusClear(); return contact(t, verb, text, tries);   // не найден: контакт сам спросит ещё раз (до 2 попыток)
+      // Имя — всё новое сообщение (trim), без хвостов старой команды
+      let q = String(t).trim().replace(/^[«"']+|[»"']+$/g, '').trim();
+      q = q.replace(/^(это|ему|ей|тому|той|кому)\s+/i, '').trim();
+      if (!q) return R(verb === 'sms' ? 'Кому написать?' : 'Кому позвонить?', { buttons: [cancelBtn()] });
+      if (findPeople(q).length) { focusClear(); return contact(q, verb, text); }
+      if (looksLikeCommand(t) && !findPeople(q).length) return null;
+      focusClear(); return contact(q, verb, text, tries);
     });
   }
 
   /* — «О чём / когда напомнить?» — */
   function remindFocus(what, when) {
-    focusSet('remind', { what, when, tries: 0 }, (t, n, d) => {
+    focusSet('remind', { what: what || '', when: when || '', tries: 0 }, (t, n, d) => {
       const has = !!(tIn(n) || dayIn(n, new Date()));
-      if (F_NO.test(n)) { focusClear(); return R('Ок, не напоминаю.'); }
+      if (F_NO.test(n) || /^(отмена|отмени)/.test(n)) { focusClear(); return R('Ок, не напоминаю.'); }
       const done = txt => { focusClear(); return understand(txt) || R('Не получилось создать напоминание.'); };
+      // when уже задан как ISO — ждём только текст
+      if (d.when && /^\d{4}-\d{2}/.test(String(d.when)) && !d.what) {
+        const text = String(t).trim();
+        if (!text || text.length < 1) return R('О чём напомнить?', { buttons: [cancelBtn()] });
+        focusClear();
+        const r = { id: C().uid(), text: text[0].toUpperCase() + text.slice(1), at: d.when, done: false };
+        return change(`Напомню «${r.text}» ${new Date(d.when).toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.`, () => { (S().reminders = S().reminders || []).push(r); O.notify && O.notify.ask(); }, () => { S().reminders = S().reminders.filter(x => x.id !== r.id); });
+      }
       if (!d.what) {
-        if (has && stripWhen(t).length > 1) return done('напомни ' + t);          // «завтра в 9:00 позвонить маме» — сразу всё
+        if (has && stripWhen(t).length > 1) return done('напомни ' + t);
         if (has) { d.when = t; return R('О чём напомнить?', { buttons: [cancelBtn()] }); }
         if (d.when) return done('напомни ' + d.when + ' ' + t);
         d.what = t; return R('Когда напомнить «' + t + '»? Например: «завтра в 9:00» или «через час».', { buttons: [cancelBtn()] });
@@ -471,7 +633,7 @@
     return R('Какая задача? Напишите название (можно со сроком: «релиз до пятницы»).', { buttons: [cancelBtn()] });
   }, 'task-ask');
 
-  on(/(позвони|позвонить|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*(.*)/, (t, n) => { const q = n.replace(/^.*?(позвони|позвонить|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*/, '').replace(/^(мне|пожалуйста)\s+/, ''); return contact(q, 'call'); }, 'call');
+  on(/(позвонить|позвони|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*(.*)/, (t, n) => { const q = n.replace(/^.*?(позвонить|позвони|набери|дозвон[а-яёa-z0-9_]*|вызови|звонок)\s*/, '').replace(/^(мне|пожалуйста)\s+/, ''); return contact(q, 'call'); }, 'call');
   on(/(напиши|отправь смс|смс|сообщи|напишу)\s+(.*)/, (t, n) => { const m = t.match(/(?:напиши|смс|сообщи)\s+(\S+)\s*[,:]?\s*(?:что\s+)?(.*)$/i); return contact(m ? m[1] : '', 'sms', m ? m[2] : ''); }, 'sms');
   function contact(q, verb, text, tries) {
     const s = S(), list = findPeople(q);
@@ -504,12 +666,17 @@
     const h = { id: C().uid(), subject: subj || '', title: rest, due: due ? E.dateStr(due.d) : '', done: false, priority: pr };
     return change(`Задача${subj ? ' по теме «' + subj + '»' : ''}: ${rest}${due ? ', на ' + due.label : ''}${pr === 'high' ? ', важное' : ''}.`, () => S().homework.push(h), () => { const s = S(); s.homework = s.homework.filter(x => x.id !== h.id); });
   }, 'hw-add');
-  on(/^(дз|домашк[а-яёa-z0-9_]*|домашнее задание|задания?|что делать)$/, (t, n, now) => { const g = E.hwGroups(S(), now), list = [...g.overdue, ...g.today, ...g.tomorrow, ...g.week]; if (!list.length) return R('Открытых задач нет.'); return R(`Открытых задач: ${list.length}.`, { cards: [`<div class="o-mini-list">${list.slice(0, 8).map(h => `<div><b>${esc(h.subject || '—')}</b><span>${esc(h.title)}${h.due ? ' · до ' + h.due.slice(8) + '.' + h.due.slice(5, 7) : ''}</span></div>`).join('')}</div>`], buttons: [btn('Открыть задачи', 'tab:tasks')] }); }, 'hw-list');
-  on(/(что задано|домашк[а-яёa-z0-9_]* на|дз на|какое дз|какая домашка)/, (t, n, now) => {
-    const g = E.hwGroups(S(), now), day = dayIn(n, now); let list;
-    if (day) { const ds = E.dateStr(day.d); list = S().homework.filter(h => !h.done && h.due === ds); } else list = [...g.overdue, ...g.today, ...g.tomorrow, ...g.week];
-    if (!list.length) return R(day ? `На ${day.label} задач нет.` : 'Открытых задач нет.');
-    return R(`Открытых задач: ${list.length}.`, { cards: [`<div class="o-mini-list">${list.slice(0, 8).map(h => `<div><b>${esc(h.subject || '—')}</b><span>${esc(h.title)}${h.due ? ' · до ' + h.due.slice(8) + '.' + h.due.slice(5, 7) : ''}</span></div>`).join('')}</div>`], buttons: [btn('Открыть задачи', 'tab:tasks')] });
+  on(/^(?:дз|домашк[а-яё]*|домашнее задание|задания?|что делать|задачи|мои задачи|список задач|открытые задачи|все задачи|что по задачам)\s*$/i, (t, n, now) => {
+    const g = E.hwGroups(S(), now), list = [...g.overdue, ...g.today, ...g.tomorrow, ...g.week];
+    if (!list.length) return R('Открытых задач нет.', { buttons: [btn('Добавить задачу', 'cmd:добавь задачу'), btn('Задачи', 'tab:tasks')] });
+    return R(`Открытых задач: **${list.length}**.`, { cards: [glassTable('Задачи', list.slice(0, 10).map(h => ({ left: h.subject || '—', title: h.title || '', meta: h.due ? ('до ' + h.due.slice(8) + '.' + h.due.slice(5, 7)) : '' })), { count: list.length })], buttons: [btn('Открыть задачи', 'tab:tasks')] });
+  }, 'hw-list');
+  on(/(?:какие\s+)?(?:задачи|задания|дз|домашк[а-яё]*)\s+(?:на\s+)?(сегодня|завтра|послезавтра)|(?:что\s+)?(?:задано|по\s+задачам)(?:\s+на)?\s*(сегодня|завтра|послезавтра)?|что задано|домашк[а-яёa-z0-9_]*\s+на|дз\s+на|какое\s+дз|какая\s+домашка|какие\s+задачи/i, (t, n, now) => {
+    const g = E.hwGroups(S(), now), day = dayIn(n, now); let list, label = day ? day.label : 'открытых';
+    if (day) { const ds = E.dateStr(day.d); list = (S().homework || []).filter(h => !h.done && h.due === ds); if (!list.length && /завтра/.test(n)) list = g.tomorrow || []; if (!list.length && /сегодня/.test(n)) list = g.today || []; }
+    else list = [...g.overdue, ...g.today, ...g.tomorrow, ...g.week];
+    if (!list.length) return R(day ? `На **${day.label}** задач нет.` : 'Открытых задач нет.', { buttons: [btn('Добавить задачу', 'cmd:добавь задачу')] });
+    return R(`Задачи (${label}): **${list.length}**.`, { cards: [glassTable('Задачи · ' + label, list.slice(0, 10).map(h => ({ left: h.subject || '—', title: h.title || '', meta: h.due ? ('до ' + h.due.slice(8) + '.' + h.due.slice(5, 7)) : '' })), { count: list.length })], buttons: [btn('Открыть задачи', 'tab:tasks')] });
   }, 'hw-list');
   on(/(сделал|сделала|выполнил[а-яёa-z0-9_]*|сдал[а-яёa-z0-9_]*)\s+(дз|домашк[а-яёa-z0-9_]*|задание)?\s*(по\s+)?(.*)/, (t, n) => {
     const q = n.replace(/^.*?(сделал[а-яёa-z0-9_]*|выполнил[а-яёa-z0-9_]*|сдал[а-яёa-z0-9_]*)\s+(дз|домашк[а-яёa-z0-9_]*|задание)?\s*(по\s+)?/, '').trim(), s = S();
@@ -521,19 +688,32 @@
   }, 'hw-done');
 
   // 7) напоминания
+  on(/^(?:какие\s+)?(?:у\s+меня\s+)?(?:есть\s+)?напоминани[яе]\s*(?:есть)?\s*$/i, () => {
+    const list = (S().reminders || []).filter(x => !x.done).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    if (!list.length) return R('Активных напоминаний нет. Скажите: «напомни через 30 мин купить хлеб».', { buttons: [btn('Напомнить', 'cmd:напомни')] });
+    return R(`Напоминаний: **${list.length}**.`, { cards: [glassTable('Напоминания', list.slice(0, 12).map(x => {
+      const d = x.at ? new Date(x.at) : null;
+      const when = d ? d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—';
+      return { left: when, title: x.text || '—', meta: '' };
+    }), { count: list.length })] });
+  }, 'remind-list');
   on(/^напомни[а-яёa-z0-9_]*\s*(?:мне)?\s*(.*)/, (t, n, now) => {
     let rest = t.replace(/^напомни[а-яёa-z0-9_]*\s*(?:мне)?\s*/i, ''); const ti = tIn(N(rest)), day = dayIn(N(rest), now);
     if (!ti && !day) { const what = rest.trim(); remindFocus(what, ''); return R(what ? 'Когда напомнить «' + what + '»? Например: «завтра в 9:00» или «через час».' : 'О чём напомнить?', { buttons: [cancelBtn()] }); }
     let at = new Date(now);
     if (day) at = new Date(day.d);
     if (ti && ti.off != null) at = new Date(now.getTime() + ti.off * 60000); else if (ti && ti.at != null) { at.setHours(Math.floor(ti.at / 60), ti.at % 60, 0, 0); if (!day && at <= now) at = E.addDays(at, 1); } else { at.setHours(8, 0, 0, 0); }
-    rest = rest.replace(/через\s+(?:полчаса|час|\d+\s*\S+)/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}[:.]\d{2}/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}(?=\s|$)(?:\s*(?:утра|вечера|дня|ночи))?/i, ' ').replace(/(?:^|[^а-яёa-z0-9_])(послезавтра|завтра|сегодня)(?![а-яёa-z0-9_])/i, '').replace(/\s+/g, ' ').trim() || 'Напоминание';
+    rest = rest.replace(/через\s+(?:полчаса|час|\d+\s*\S+)/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}[:.]\d{2}/i, '').replace(/(?:^|\s)(?:в|к)\s*\d{1,2}(?=\s|$)(?:\s*(?:утра|вечера|дня|ночи))?/i, ' ').replace(/(?:^|[^а-яёa-z0-9_])(послезавтра|завтра|сегодня)(?![а-яёa-z0-9_])/i, '').replace(/\s+/g, ' ').trim();
+    if (!rest) {
+      remindFocus('', at.toISOString());
+      return R('О чём напомнить ' + at.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) + '?', { buttons: [cancelBtn()] });
+    }
     const r = { id: C().uid(), text: rest[0].toUpperCase() + rest.slice(1), at: at.toISOString(), done: false };
     return change(`Напомню «${r.text}» ${at.toLocaleString('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}.`, () => { (S().reminders = S().reminders || []).push(r); O.notify && O.notify.ask(); }, () => { S().reminders = S().reminders.filter(x => x.id !== r.id); });
   }, 'remind');
 
   // 8) рюкзак
-  on(/(что взять|что брать|рюкзак|собрать (портфель|рюкзак))/, (t, n, now) => {
+  on(/(что взять|что брать|рюкзак|сумк[аиуе]?\s+на|собрать (портфель|рюкзак))/, (t, n, now) => {
     const day = dayIn(n, now) || ((E.nowMin(now) >= 15 * 60) ? { d: E.addDays(now, 1), label: 'завтра' } : { d: now, label: 'сегодня' });
     const di = E.dayIdx(day.d);
     const r = (O.actions && O.actions.packFor) ? O.actions.packFor(di) : { msg: '—', rows: [] };
@@ -550,7 +730,17 @@
   on(/(мельч[а-яёa-z0-9_]*|меньше|уменьш[а-яёa-z0-9_]*)\s*(шрифт|текст)|шрифт\s*(мельч|меньше)/, () => setting('Уменьшил текст.', { textScale: Math.max(85, (+S().settings.textScale || 100) - 10) }), 'font-');
   on(/(?:до остановки|идти до остановки|иду до остановки)\s*(\d{1,2})\s*мин|(\d{1,2})\s*мин[а-яёa-z0-9_]*\s*(?:до остановки|иду до остановки)/, (t, n, now, m) => { const v = +(m[1] || m[2]), s = S(); if (!s.buses.length) return R('Сначала добавьте автобус.'); const prev = s.buses.map(b => b.walkMin); return change(`Время до остановки для всех маршрутов: ${v} мин.`, () => s.buses.forEach(b => b.walkMin = v), () => s.buses.forEach((b, i) => b.walkMin = prev[i])); }, 'walk');
   on(/(?:на выход|на сборы|собираюсь)\s*(\d{1,2})\s*мин|(\d{1,2})\s*мин[а-яёa-z0-9_]*\s*(?:на выход|на сборы)/, (t, n, now, m) => { const v = +(m[1] || m[2]); return setting(`Время на сборы после работы: ${v} мин. Учту при расчёте маршрутов.`, { exitMin: v }); }, 'exit');
-  on(/^(настройки|открой настройки|параметры)$/, () => { O.actions.go('settings'); return R('Открыл настройки.', { buttons: [btn('Настройки', 'tab:settings')] }); }, 'settings');
+  on(/^(настройки|открой настройки|параметры|оформление|стиль|тема)$/, () => {
+    const card = (O.inline && O.inline.settingsCard) ? O.inline.settingsCard('look') : '';
+    return R('Оформление и параметры — карточка ниже. Полный список: «Все настройки».', {
+      cards: card ? [card] : [],
+      buttons: [btn('Стиль', 'cmd:оформление'), btn('Агент', 'cmd:настройки агента'), btn('Все настройки', 'tab:settings')]
+    });
+  }, 'settings');
+  on(/^(настройки\s+агента|агент\s+настройки)$/, () => {
+    const card = (O.inline && O.inline.settingsCard) ? O.inline.settingsCard('agent') : '';
+    return R('Параметры агента и помидора:', { cards: card ? [card] : [], buttons: [btn('Стиль', 'cmd:оформление'), btn('Все настройки', 'tab:settings')] });
+  }, 'settings-agent');
   function setting(text, patch) { const s = S(), prev = {}; Object.keys(patch).forEach(k => prev[k] = s.settings[k]); return change(text, () => { Object.assign(s.settings, patch); C().applyTheme(); }, () => { Object.assign(s.settings, prev); C().applyTheme(); }); }
 
   // 10) обмен и навигация
@@ -573,7 +763,120 @@
     return R(parts.length ? parts.join('\n') : 'Пока почти ничего: я учусь на ваших частых действиях. Скажите «запомни…» или «мама — это Ирина».', { buttons: [btn('Забыть всё', 'ag:forget')] });
   }, 'memory');
   on(/^(забудь все|забудь всё|очисти память)/, () => R('Стереть память агента (привычки, заметки, связи контактов)?', { buttons: [btn('Да, забыть', 'ag:forget'), btn('Нет', 'ag:no:x')] }), 'forget');
-  on(/^(отмени|отмена|верни назад)$/, () => { const u = undoStack.pop(); if (!u) return R('Нечего отменять.'); u(); C().save(); C().render(); return R('Отменено.'); }, 'undo');
+  on(/^(отмени|отмена|верни назад|undo)$/i, () => {
+    try {
+      const u = undoStack.pop();
+      if (!u) return R('Нет изменений для отмены.');
+      u();
+      try { C().save(); C().render(); } catch (e) {}
+      return R('Отменено.');
+    } catch (e) {
+      console.error('undo', e);
+      return R('Не удалось отменить. Нет изменений для отмены.');
+    }
+  }, 'undo');
+
+
+  // Помидор — полная панель в агенте (как калькулятор)
+  on(/^(?:начни|запусти|старт|включи)\s+(?:помидор[оа]?|помодор[оа]?|pomodoro|фокус(?:\s*режим)?)(?:\s+(\d{1,3})\s*(?:мин(?:ут[аы]?)?)?)?\s*$/i, (t, n, now, m) => {
+    try {
+      const mins = (m && m[1]) ? +m[1] : undefined;
+      if (O.pomo) O.pomo.start(mins);
+      const card = (O.inline && O.inline.pomoCard) ? O.inline.pomoCard() : '';
+      return R(mins ? ('Помидор **' + mins + ' мин**. Карточка ниже — или «Закрепить».') : 'Помидор запущен. Карточка в ленте; «Закрепить» — сверху чата.', {
+        cards: card ? [card] : [],
+        buttons: [btn('Закрепить', 'cmd:закрепи помидор'), btn('Пауза', 'cmd:пауза помидор'), btn('Сброс', 'cmd:сброс помидор')]
+      });
+    } catch (e) {
+      console.error('pomo-start', e);
+      return R('Не удалось запустить помидор: ' + (e.message || e));
+    }
+  }, 'pomo-start');
+  on(/^(?:помидор[оа]?|помодор[оа]?|pomodoro)\s*(\d{1,3})?\s*$/i, (t, n, now, m) => {
+    try {
+      const mins = (m && m[1]) ? +m[1] : undefined;
+      if (mins && O.pomo) O.pomo.start(mins);
+      const card = (O.inline && O.inline.pomoCard) ? O.inline.pomoCard() : '';
+      return R(mins ? ('Помидор **' + mins + ' мин**.') : 'Карточка помидора. Старт / пресеты / «Закрепить».', {
+        cards: card ? [card] : [],
+        buttons: [btn('Старт 25', 'cmd:помидор 25'), btn('45 мин', 'cmd:помидор 45'), btn('Закрепить', 'cmd:закрепи помидор')]
+      });
+    } catch (e) {
+      console.error('pomo-word', e);
+      return R('Не удалось открыть помидор: ' + (e.message || e));
+    }
+  }, 'pomo-word');
+
+  on(/^(?:пауза|продолжи(?:ть)?)\s*(?:помидор[оа]?|помодор[оа]?|фокус)?\s*$/i, () => {
+    try {
+      const r = O.pomo ? O.pomo.pause() : { ok: false, msg: 'Помидор не загружен' };
+      if (O.inline && O.inline.openPomo) O.inline.openPomo({});
+      return R(r.msg);
+    } catch (e) { return R('Ошибка паузы.'); }
+  }, 'pomo-pause');
+  on(/^(?:сброс|останови|стоп)\s*(?:помидор[оа]?|помодор[оа]?|фокус)?\s*$/i, () => {
+    try {
+      const r = O.pomo ? O.pomo.reset() : { ok: false, msg: 'Помидор не загружен' };
+      if (O.inline && O.inline.openPomo) O.inline.openPomo({});
+      return R(r.msg);
+    } catch (e) { return R('Ошибка сброса.'); }
+  }, 'pomo-reset');
+  on(/^(?:сколько\s+)?(?:помидор(?:ов)?|помодор(?:о)?)\s*(?:сегодня)?\s*$/i, () => {
+    try {
+      if (O.inline && O.inline.openPomo) O.inline.openPomo({});
+      const st = O.pomo ? O.pomo.status() : { total: 0, label: '—', state: 'idle' };
+      return R(st.state === 'idle'
+        ? `Сегодня завершено: **${st.total}**. Панель помидора открыта в чате.`
+        : `Сейчас ${st.state === 'focus' ? 'фокус' : 'перерыв'}: **${st.label}**. Всего сегодня: ${st.total}.`);
+    } catch (e) { return R('Не удалось показать статус помидора.'); }
+  }, 'pomo-status');
+  on(/^(?:закрепи|закрепить|пин)\s*(?:помидор[оа]?|помодор[оа]?)?\s*$/i, () => {
+    try {
+      if (O.inline && O.inline.openPomo) O.inline.openPomo({});
+      return R('Помидор закреплён сверху чата. Сверните или ✕, чтобы открепить.');
+    } catch (e) { return R('Не удалось закрепить.'); }
+  }, 'pomo-pin');
+
+  on(/^(?:режим\s+)?концентрац\S*|focus\s*mode|не\s*отвлекай\s*$/i, () => {
+    if (!O.focusMode) return R('Режим концентрации недоступен. Обновите страницу.');
+    const on = O.focusMode.toggle();
+    return R(on ? 'Режим концентрации: лишнее скрыто. Снова «концентрация» или кнопка сверху — выйти.' : 'Обычный режим.');
+  }, 'focus-mode');
+
+  on(/^(?:подели(?:сь|ться)|share|qr|куар)\s*(.*)$/i, (t, n) => {
+    const q = (n || '').replace(/^(?:подели(?:сь|ться)|share|qr|куар)\s*/i, '').trim();
+    const sheet = `<div class="o-share-sheet">
+      <button type="button" class="o-ch" data-act="share:app"><b>Приложение</b><small>QR на Контур</small></button>
+      <button type="button" class="o-ch" data-act="share:contact"><b>Контакт</b><small>vCard / QR</small></button>
+      <button type="button" class="o-ch" data-act="tab:share"><b>Данные</b><small>Раздел Обмен</small></button>
+      <button type="button" class="o-ch" data-act="tab:flow"><b>Схема</b><small>FlowForge</small></button>
+    </div>`;
+    if (/прилож|app|контур|ссылк/i.test(q)) {
+      return R('Ссылка на Контур:\n' + location.href.split('#')[0], { cards: [sheet], buttons: [btn('Обмен', 'tab:share')] });
+    }
+    if (/схем/i.test(q)) {
+      return R('Схема: откройте FlowForge → «В агент» / «PNG в агент», или раздел Схемы.', { cards: [sheet], buttons: [btn('Схемы', 'tab:flow')] });
+    }
+    return R('Чем поделиться?', { cards: [sheet] });
+  }, 'share-sheet');
+
+  // Где схема / открыть схемы / flowforge
+  on(/^(?:где\s+схем[аы]?|открой\s+схем[уыа]|схем[аы]?|flowforge|блок[- ]?схем)\s*$/i, () => {
+    // схемы: сначала в чате (мастер), полный редактор — только по кнопке
+    return R('Схемы собираются **в этом чате**. Напишите «создай схему» или «мастер схем». Полный редактор FlowForge — по кнопке ниже.', {
+      buttons: [btn('Мастер схем', 'cmd:мастер схем'), btn('Редактор (полный)', 'tab:flow')]
+    });
+  }, 'where-scheme');
+
+  on(/^(?:схема|scheme)\s*[:=]\s*([\s\S]+)/i, (t, n) => {
+    return R('Схема получена. Могу открыть в редакторе.', {
+      buttons: [btn('Открыть в FlowForge', 'tab:flow'), btn('Поделиться', 'cmd:поделись схемой')]
+    });
+  }, 'scheme-in');
+
+
+
+
   on(/^(алло|алё|але|ало|ау|эй|прив|привет|приветик|здравствуй[а-яёa-z0-9_]*|здорово|хай|hi|hello|ку|добрый (день|вечер)|доброе утро|доброй ночи)( (алло|алё|але|ало|орби|орбита))*$/, () => {
     const h = new Date().getHours();
     const hi = h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
@@ -657,7 +960,7 @@
      Код правил ниже сохранён без изменений. Пока CLOUD_READY = false, они отвечают коротко и ничего не ломают.
      Как вернуть всё при старте ~10.0 — docs/CLOUD-STUBS.md (поиск по «CLOUD_READY»). */
   const CLOUD_READY = false;
-  const CLOUD_SOON = 'Облако, стена, друзья, личные сообщения и расписания с push сейчас в разработке — планируем ближе к версии 10.0 (в 5.x не успеваем). Всё остальное работает как обычно.';
+  const CLOUD_SOON = 'Облако, стена, друзья и cron — в разработке, версия 5.8. Сейчас всё хранится локально на устройстве.';
   /* имя правила → слово-«замок»: если в тексте его нет, правило пропускается (чтобы «лента», «опубликуй», «отправь сообщение» не перехватывались зря) */
   const CLOUD_GATE = { 'cloud-sync': null, 'cloud-status': null, 'cron-list': null, 'cfriend': null, 'wall-post': /стен/, 'wall-read': /стен|облак/, 'cron-add': /задани|сценари|cron/, 'cdm': /личн/ };
   INT.forEach(it => {
@@ -665,6 +968,7 @@
     const orig = it.fn, gate = CLOUD_GATE[it.name];
     it.fn = function (t, n) { if (CLOUD_READY) return orig.apply(this, arguments); return (!gate || gate.test(n || t || '')) ? R(CLOUD_SOON) : null; };
   });
+
   on(/^(помощь|помоги мне|что (ты )?(умеешь|можешь)|команды)$/, () => {
     const skills = (O.actions && O.actions.SKILLS) || [];
     const byCat = {};
@@ -676,42 +980,10 @@
       return '<li><b>' + catTitle[c] + '</b>: ' + list.slice(0, 4).map(s => '«' + esc((s.examples && s.examples[0]) || s.label) + '»').join(', ') + '</li>';
     }).filter(Boolean).join('');
     return R(`Я ${name()}. Команды из каталога навыков:`, {
-      cards: [`<ul class="o-help">${blocks}<li>Вкладки сверху: <b>Быстрые</b>, <b>День</b>, <b>Правки</b>, <b>Навыки</b></li><li>«отмена» — откатить последнее изменение</li><li><b>Инструменты</b>: калькулятор, графики, мастер схем (кнопки), маршруты метро/работа</li><li><b>Память</b>: до 300 сообщений — «что было вчера», «что было на прошлой неделе»</li></ul>`],
+      cards: [`<ul class="o-help">${blocks}<li>Вкладки сверху: <b>Быстрые</b>, <b>День</b>, <b>Правки</b>, <b>Навыки</b></li><li>«отмена» — откатить последнее изменение</li><li><b>Инструменты</b>: калькулятор, графики, мастер схем (кнопки), маршруты метро/работа</li><li><b>Память</b>: настраиваемый лимит — «что было вчера», «что было на прошлой неделе»</li></ul>`],
       buttons: [btn('Навыки', 'ag:panel:skills'), btn('Быстрые', 'ag:panel:quick'), ...sug()]
     });
   }, 'help');
-
-  // порядок: сначала сценарии/SOS и ТОЧНЫЕ команды-изменения, потом общие «справочные» правила, последним — обучение алиасам
-  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'note-wizard', 'task-ask', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
-  const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : n === 'script-name' ? 998 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
-
-
-  /* ───── горизонтальная прокрутка подсказок на ПК: колесо, перетаскивание, стрелки ───── */
-  (function () {
-    const SEL = '.o-chips-row, .o-live-chips, .o-agent-tabs';
-    const host = e => (e.target && e.target.closest) ? e.target.closest(SEL) : null;
-    document.addEventListener('wheel', e => {
-      const el = host(e); if (!el || el.scrollWidth <= el.clientWidth + 1) return;
-      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { el.scrollLeft += e.deltaY; e.preventDefault(); }
-    }, { passive: false });
-    let drag = null, moved = false, justDragged = false;
-    document.addEventListener('pointerdown', e => {
-      if (e.pointerType !== 'mouse' || e.button !== 0) return;
-      const el = host(e); if (!el || el.scrollWidth <= el.clientWidth + 1) return;
-      drag = { el, x: e.clientX, left: el.scrollLeft }; moved = false;
-    });
-    document.addEventListener('pointermove', e => {
-      if (!drag) return;
-      const dx = e.clientX - drag.x;
-      if (!moved && Math.abs(dx) > 5) { moved = true; drag.el.classList.add('dragging'); }
-      if (moved) drag.el.scrollLeft = drag.left - dx;
-    });
-    const end = () => { if (!drag) return; drag.el.classList.remove('dragging'); justDragged = moved; drag = null; setTimeout(() => { justDragged = false; }, 60); };
-    document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
-    document.addEventListener('click', e => { if (justDragged) { e.preventDefault(); e.stopPropagation(); } }, true);
-  })();
-
-  /* ───── главный обработчик ───── */
 
   // ─── 4.2: навигация, ДР, заметки, цели, уроки через actions ───
   on(/^(открой|открыть|перейди|перейти|покажи раздел|раздел)\s+(.+)/, (t, n) => {
@@ -753,9 +1025,15 @@
     return R(r.msg);
   }, 'note');
 
-  on(/^(?:добавь\s+)?(цель|новая цель)\s+(.+)/i, (t, n, now, m) => {
-    const title = (m && m[2]) || '';
-    const r = O.actions.addGoal(title.trim());
+  on(/^(?:какие\s+)?(?:мои\s+)?цел[иь]\s*$/i, () => {
+    const _seenG = new Set(); const list = (S().goals || []).filter(x => (x.progress || 0) < 100).filter(x => { const k = String(x.title||'').toLowerCase(); if (_seenG.has(k)) return false; _seenG.add(k); return true; });
+    if (!list.length) return R('Активных целей нет. Скажите: «цель выучить английский».', { buttons: [btn('Добавить цель', 'cmd:цель ')] });
+    return R(`Целей: **${list.length}**.`, { cards: [glassTable('Цели', list.slice(0, 10).map(g => ({ left: (g.progress || 0) + '%', title: g.title || '', pct: g.progress || 0, meta: g.deadline ? ('срок ' + g.deadline) : '' })), { count: list.length })], buttons: [btn('Задачи', 'tab:tasks')] });
+  }, 'goal-list');
+  on(/^(?:добавь\s+)?(?:цель|новая цель)\s+(.+)/i, (t, n, now, m) => {
+    const title = ((m && m[1]) || '').trim();
+    if (!title) return R('Какая цель? Например: «цель выучить английский».');
+    const r = O.actions.addGoal(title);
     if (r.ok && r.undo) { undoStack.push(r.undo); return R(r.msg, { buttons: [btn('Отменить', 'ag:undo'), btn('Задачи', 'tab:tasks')] }); }
     return R(r.msg);
   }, 'goal');
@@ -792,27 +1070,6 @@
     if (r.ok && r.undo) { undoStack.push(r.undo); return R(r.msg, { buttons: [btn('Отменить', 'ag:undo')] }); }
     return R(r.msg);
   }, 'lesson-del');
-
-  on(/что\s+взять|рюкзак|сумк|собрать\s+портфель|проверка\s+дня/, (t, n) => {
-    const day = O.actions.parseDay(t, new Date());
-    const d = day ? day.idx : E.dayIdx(new Date());
-    const r = O.actions.packFor(d);
-    const rows = r.rows || [];
-    const card = rows.length
-      ? `<div class="o-packs">${rows.map(row => `<button type="button" class="o-pk${row.done ? ' on' : ''}" data-ag="ag:pack:${d}:${encodeURIComponent(row.name)}">${ic('check', 13, 3)}${esc(row.name)}</button>`).join('')}</div>`
-      : '';
-    return R(r.msg, {
-      cards: card ? [card] : [],
-      buttons: [btn('Открыть сборы', 'tab:pack'), btn('Встречи', 'tab:schedule'), btn('Что дальше', 'cmd:что дальше')]
-    });
-  }, 'pack');
-
-
-
-  // ─── этап A: перенос, кружок, автобус, дневник, тема, отмена ───
-
-
-
 
   /* ───── разбор «день / время / кабинет» в командах (кириллица-безопасно) ───── */
   const CYR = '[\\wа-яёА-ЯЁ]';
@@ -947,22 +1204,8 @@
     return R(r.msg);
   }, 'diary');
 
-  on(/тема\s*(светл[а-яёa-z0-9_]*|т[её]мн[а-яёa-z0-9_]*|dark|light)/i, (t, n) => {
-    const light = /светл|light/.test(n);
-    const r = O.actions.setTheme(light ? 'light' : 'dark');
-    if (r.undo) undoStack.push(r.undo);
-    return R(r.msg, { buttons: [btn('Отменить', 'ag:undo')] });
-  }, 'theme');
-
-  on(/^(отмена|отмени|undo)(\s+\d+)?$/i, () => {
-    const r = O.actions.undoLast();
-    if (!r.ok) {
-      const u = undoStack.pop();
-      if (u) { u(); C().save(); C().render(); return R('Отменено.', { buttons: sug() }); }
-      return R(r.msg);
-    }
-    return R(r.msg, { buttons: sug() });
-  }, 'undo');
+  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'help-full', 'pomo-start', 'pomo-word', 'pomo-pause', 'pomo-reset', 'pomo-status', 'pomo-pin', 'focus-mode', 'where-scheme', 'share-sheet', 'scheme-in', 'note-wizard', 'task-ask', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'dates-between', 'dates-until', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal-list', 'goal', 'remind-list', 'settings', 'settings-agent', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
+  const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : n === 'script-name' ? 998 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
 
   // синонимы глаголов: «создай/сделай/заведи автобус» = «добавь автобус», «убери/сотри» = «удали»
   function canon(t) {
@@ -1037,7 +1280,9 @@
     if (/^д/.test(t)) { push('Что задано', 'что задано', 'intent'); push('Добавить задачу', 'добавь задачу', 'intent'); push('Дни рождения', 'дни рождения', 'intent'); }
     if (/^а|^ав/.test(t)) { push('Автобусы домой', 'автобусы домой', 'intent'); push('Автобусы сейчас', 'автобусы сейчас', 'intent'); }
     if (/^у|^ур/.test(t)) { push('Расписание сегодня', 'расписание на сегодня', 'intent'); push('Добавить встречу', 'добавь встречу', 'intent'); }
-    if (/^п|^по/.test(t)) { push('Позвонить', 'позвони', 'intent'); push('Помощь', 'помощь', 'intent'); }
+    if (/^п|^по/.test(t)) { push('Позвонить', 'позвони', 'intent'); push('Помощь', 'помощь', 'intent'); push('Помидор', 'помидор', 'intent'); }
+    if (/^пом|^поми|^помод/.test(t)) { push('Запусти помидор', 'запусти помодоро', 'intent'); push('Помидор 25', 'помидор 25', 'intent'); push('Помидор 45', 'помидор 45', 'intent'); }
+    if (/^сх|^где\s*с/.test(t)) { push('Где схема', 'где схема', 'intent'); push('Открыть схемы', 'открой схемы', 'intent'); }
     if (/^я|^ос|^св/.test(t)) { push('Я освободился', 'я освободился', 'intent'); }
     if (/^ч|^чт/.test(t)) { push('Что дальше', 'что дальше', 'intent'); push('Что взять сегодня', 'что взять сегодня', 'intent'); push('Что задано', 'что задано', 'intent'); }
     if (/^н|^на/.test(t)) { push('Напомни', 'напомни через 30 минут', 'intent'); push('Настройки', 'открой настройки', 'intent'); }
@@ -1169,7 +1414,11 @@
     .replace(/(^|[^а-яёa-z0-9_])(созвон[а-яё]*|совещани[а-яё]+|митинг[а-яё]*|планёрк[а-яё]+|планерк[а-яё]+|стендап[а-яё]*)(?=\s+(?:пн|вт|ср|чт|пт|сб|вс|понедельник|вторник|среда|среду|четверг|пятница|пятницу|суббота|субботу|воскресенье|\d))/gi, '$1$2')
     .replace(/(^|[^а-яёa-z0-9_])(добавь|добавить|новый|новая|новое|создай|создать|запиши|удали|удалить|убери|сотри|перенеси)\s+блок(?![а-яё-])/gi, (m, b, v) => b + v + ' кружок')
     .replace(/(^|[^а-яёa-z0-9_])(добавь|добавить|новая|новую|создай|создать|запиши|поставь|сделал|сделала|выполнил|выполнила|закрыл|закрыла|отметь|отметить|сдал)\s+задач[ауие](?![а-яё])/gi, (m, b, v) => b + v + ' дз')
-    .replace(/^\s*(мои задачи|список задач|открытые задачи|все задачи|задачи|что по задачам|какие задачи)\s*\??\s*$/i, 'что задано')
+    .replace(/^\s*(мои задачи|список задач|открытые задачи|все задачи|задачи|что по задачам|какие задачи)(?:\s+на\s+(сегодня|завтра))?\s*\??\s*$/i, (m, _, day) => day ? ('что задано на ' + day) : 'что задано')
+    .replace(/^\s*что\s+у\s+нас\s+(завтра|сегодня|послезавтра)\s*\??\s*$/i, 'расписание на $1')
+    .replace(/^\s*какие\s+цел[иь]\s*\??\s*$/i, 'цели')
+    .replace(/^\s*цел[ьи]\s*\??\s*$/i, 'цели')
+    .replace(/^\s*какие\s+напоминани[яе].*$/i, 'напоминания')
     .replace(/(^|[^а-яё])на работу(?![а-яё])/gi, '$1в школу').replace(/(^|[^а-яё])с работы(?![а-яё])/gi, '$1из школы')
     .replace(/(^|[^а-яё])после работы(?![а-яё])/gi, '$1после школы').replace(/(^|[^а-яё])в офис(?![а-яё])/gi, '$1в школу')
     .replace(/^\s*(журнал|в журнал)\s+/i, 'дневник ');
@@ -1178,20 +1427,28 @@
   function spokenMath(text) {
     try {
       const V = window.CifraVoice; if (!V || !text) return text;
+      if (/^\s*\d{1,2}\s*[:.]\s*\d{2}\s*$/.test(text)) return text;   // «10:30» — время, не деление
       const p = V.parse(text);
       if (p.unk.length || !p.expr || !/\d/.test(p.expr) || !/[+−×÷^%]|\(/.test(p.expr)) return text;
       return 'посчитай ' + p.expr.replace(/−/g, '-').replace(/×/g, '*').replace(/÷/g, '/').replace(/√/g, 'sqrt').replace(/∛/g, 'cbrt').replace(/π/g, 'pi');
     } catch (e) { return text; }
   }
   A.process = function (text) {
-    { const fr = focusStep(text); if (fr) return fr; }   // продолжение незаконченной команды
-    { const sc = O.scripts && O.scripts.match && O.scripts.match(text); if (sc) { O.scripts.run(sc); return [R('Запускаю сценарий «' + sc.name + '».')]; } }   // фраза-триггер сценария важнее встроенных мастеров (в т. ч. «схема …»)
-    text = spokenMath(text);
-    try { const pre = O.inline && O.inline.handle(text); if (pre && pre.length) return pre; } catch (e) { console.error('inline', e); }
-    text = toLegacy(text);
-    const c = C(), r = understand(text);
-    if (r) { if (r.then) return r.then(rr => { if (rr) { if (c.legacyPending) c.legacyCancel(); legacy = false; rr.intent = rr.intent || 'cloud'; return [rr]; } return processSync(text); }); return [r]; }
-    return processSync(text);
+    try {
+      { const fr = focusStep(text); if (fr) return fr; }
+      { const sc = O.scripts && O.scripts.match && O.scripts.match(text); if (sc) { O.scripts.run(sc); return [R('Запускаю сценарий «' + sc.name + '».')]; } }
+      // сначала текстовые навыки на исходной фразе («сколько процентов 30 от 200»), и только потом голосовой разбор выражений
+      try { const pre0 = O.inline && O.inline.handle(text); if (pre0 && pre0.length) return pre0; } catch (e) { console.error('inline', e); }
+      text = spokenMath(text);
+      try { const pre = O.inline && O.inline.handle(text); if (pre && pre.length) return pre; } catch (e) { console.error('inline', e); }
+      text = toLegacy(text);
+      const c = C(), r = understand(text);
+      if (r) { if (r.then) return r.then(rr => { if (rr) { if (c && c.legacyPending) c.legacyCancel(); legacy = false; rr.intent = rr.intent || 'cloud'; return [rr]; } return processSync(text); }); return [r]; }
+      return processSync(text);
+    } catch (e) {
+      console.error('process', e);
+      return [R('Сбой обработки: ' + (e && e.message ? e.message : e) + '. Попробуйте ещё раз.')];
+    }
   };
   function processSync(text) {
     const c = C();
@@ -1219,9 +1476,9 @@
   function push(m) {
     const entry = Object.assign({ at: Date.now() }, m);
     A.msgs.push(entry);
-    if (A.msgs.length > 300) A.msgs = A.msgs.slice(-300);
+     { const _c = memCap(); if (_c > 0 && A.msgs.length > _c) A.msgs = A.msgs.slice(-_c); }
     if (O.work && O.work.pushMsg) O.work.pushMsg(mem, { role: entry.role, text: entry.text, at: entry.at });
-    else { mem.msgs = A.msgs.slice(-300); saveMem(); }
+    else { const _c = memCap(); mem.msgs = _c > 0 ? A.msgs.slice(-_c) : A.msgs.slice(); saveMem(); }
     if ((entry.role === 'user' || entry.role === 'bot') && entry.text) memPush({ role: entry.role, text: entry.text, at: entry.at });
   }
   A.send = async function (text) {
@@ -1239,7 +1496,7 @@
       if (O.llmReady && O.llmReady()) {
         A.render(true); // show typing via busy
         const llmR = await callLlm(replies[0]._raw || text);
-        replies = [llmR || R('Не совсем понял «' + text + '». Попробуй проще или выбери:', { buttons: sug() })];
+        replies = [llmR || R('Не совсем понял «' + text + '». Я умею маршруты, звонки, задачи, напоминания и встречи — выбери:', { buttons: sug() })];
       } else {
         const aiPrompt = 'Ты помогаешь рабочему пространству «Контур». Пользователь написал: «' + text + '».\nПерефразируй в одну чёткую команду на русском.\nОтветь ТОЛЬКО текстом команды.';
         const showPrompt = s.agentAiPrompt !== false;
@@ -1379,17 +1636,34 @@
   /* ───── интерфейс ───── */
   A.chips = function () {
     const now = new Date(), nm = E.nowMin(now), ev = E.eventsOn(S(), now).list, out = [], seen = new Set();
-    const add = (l, c) => { const k = l.toLowerCase(); if (!seen.has(k) && out.length < 6) { seen.add(k); out.push(btn(l, 'cmd:' + c)); } };
-    if (S().settings.agentSuggest !== false) O.habits.top(now, { prefix: 'cmd:', limit: 3 }).forEach(m => add(m.label, m.label));
-    if (ev.length && nm < ev[0].s) add('Когда выходить на работу', 'когда выходить на работу');
-    else if (ev.length && nm >= Math.max(...ev.map(e => e.e)) - 40) { add('Я освободился', 'я освободился'); add('Когда автобус домой', 'когда автобус домой'); }
+    const st = S().settings || {};
+    const max = st.agentChipCats ? 14 : 8;
+    const add = (l, c) => { const k = l.toLowerCase(); if (!seen.has(k) && out.length < max) { seen.add(k); out.push(btn(l, 'cmd:' + c)); } };
+    if (st.agentSuggest !== false && O.habits) try { O.habits.top(now, { prefix: 'cmd:', limit: 3 }).forEach(m => add(m.label, m.label)); } catch (e) {}
+    if (ev.length && nm < ev[0].s) add('Когда выходить', 'когда выходить на работу');
+    else if (ev.length && nm >= Math.max(...ev.map(e => e.e)) - 40) { add('Я освободился', 'я освободился'); add('Автобус домой', 'когда автобус домой'); }
     else add('Что дальше', 'что дальше');
     if (nm >= 17 * 60) add('Что взять завтра', 'что взять завтра');
     if (S().people.some(p => p.phone)) { const f = favPerson(); add(f ? 'Позвонить ' + firstName(f) : 'Позвонить', f ? 'позвони ' + f.name : 'позвони'); }
-    add('Задачи', 'что задано'); add('Помощь', 'помощь');
+    add('Задачи', 'что задано');
+    add('Цели', 'цели');
+    add('Напомни', 'напомни');
+    add('Помидор', 'помидор');
+    add('Помощь', 'помощь');
+    if (st.agentChipCats) {
+      // категории быстрых действий (вкл. в настройках)
+      add('Расписание', 'расписание на сегодня');
+      add('Завтра', 'расписание на завтра');
+      add('Напоминания', 'напоминания');
+      add('Калькулятор', 'калькулятор');
+      add('Схемы', 'где схема');
+      add('Оформление', 'оформление');
+      add('Память', 'что было вчера');
+      add('Концентрация', 'концентрация');
+    }
     try {
       if (O.actions && O.actions.SKILLS) {
-        O.actions.SKILLS.slice(0, 8).forEach(sk => {
+        O.actions.SKILLS.slice(0, st.agentChipCats ? 6 : 4).forEach(sk => {
           const ex = (sk.examples && sk.examples[0]) || sk.label;
           add(sk.label, ex);
         });
@@ -1472,7 +1746,7 @@
     }
     if (A.panel === 'scripts') { if (O.scripts) O.scripts.panel(body); else body.innerHTML = '<p style="padding:16px">Модуль сценариев не загружен.</p>'; return; }
     if (A.panel === 'cloud' && !CLOUD_READY) {
-      body.innerHTML = '<div class="o-panel o-scripts" style="display:block;padding:16px"><p style="margin:0 0 8px"><b>Облако — в разработке</b></p><p class="muted" style="margin:0">Синхронизация между устройствами, общая стена, друзья, личные сообщения и расписания с push планируем ближе к версии 10.0 (в 5.x не успеваем). Сейчас всё хранится локально на вашем устройстве.</p></div>';
+      body.innerHTML = '<div class="o-panel o-scripts" style="display:block;padding:16px"><p style="margin:0 0 8px"><b>Облако — в разработке</b></p><p class="muted" style="margin:0">Облако, стена, друзья и cron — в разработке, версия 5.8. Сейчас всё хранится локально на устройстве.</p></div>';
       return;
     }
     if (A.panel === 'cloud') {
@@ -1483,9 +1757,9 @@
         ${(mem.msgs || []).length ? (() => {
           const days = {};
           (mem.msgs || []).forEach(m => { const d = new Date(m.at).toLocaleDateString('ru-RU'); (days[d] = days[d] || []).push(m); });
-          return Object.entries(days).slice(-7).map(([d, arr]) => `<div class="sc-card"><b>${d}</b><small>${arr.length} сообщений · всего в памяти ${mem.msgs.length} из 300 локально${Cl && Cl.logged() ? ' · полная история в облаке (до 100 МБ)' : ''}</small>
+          return Object.entries(days).slice(-7).map(([d, arr]) => `<div class="sc-card"><b>${d}</b><small>${arr.length} сообщений · ${(() => { const c = memCap(); return 'всего в памяти ' + mem.msgs.length + (c > 0 ? ' из ' + c : ' (без лимита)') + ' локально'; })()}${Cl && Cl.logged() ? ' · полная история в облаке (до 100 МБ)' : ''}</small>
             <div class="sc-row">${arr.slice(-3).reverse().map(m => `${m.role === 'user' ? '🟦' : '🟪'} ${esc(String(m.text).slice(0, 60))}`).join('<br>')}</div></div>`).join('');
-        })() : '<p class="muted" style="padding:8px">История пуста.</p>'}${Cl && Cl.logged() ? '' : '<p class="o-note" style="margin-top:8px">' + ic('info', 13) + ' Локально агент помнит последние 300 сообщений. Подключите Supabase (по желанию), чтобы хранить всю переписку до 100 МБ и заходить с любого устройства. Возможны сбои без ВПН — данные при этом остаются локально.</p><button class="o-btn pri" data-ag="tab:cloud">Подключить облако</button>'}</div>`;
+        })() : '<p class="muted" style="padding:8px">История пуста.</p>'}${Cl && Cl.logged() ? '' : '<p class="o-note" style="margin-top:8px">' + ic('info', 13) + ' Локально агент помнит последние сообщения (лимит в Настройках → Агент). Подключите Supabase (по желанию), чтобы хранить всю переписку до 100 МБ и заходить с любого устройства. Возможны сбои без ВПН — данные при этом остаются локально.</p><button class="o-btn pri" data-ag="tab:cloud">Подключить облако</button>'}</div>`;
       return;
     }
     if (A.panel === 'skills') {
@@ -1560,7 +1834,7 @@
       if (m.role === 'user') return `<div class="o-m me">${esc(m.text)}</div>`;
       const isLast = i === last, btns = (isLast ? (m.buttons || []) : []).map(x => `<button class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join('');
       const subj = m.legacySubjects && isLast ? `<div class="o-subj">${(C().SUBJECTS || []).map(x => `<button class="o-chip" data-ag="cmd:${esc(x)}">${esc(x)}</button>`).join('')}</div>` : '';
-      return `<div class="o-m bot"><div class="o-m-t">${esc(m.text).replace(/\n/g, '<br>')}</div>${(m.cards || []).join('')}${subj}${btns ? `<div class="o-m-b">${btns}</div>` : ''}${m.copyPrompt && isLast ? `<div class="o-m-b"><button class="o-chip" data-ag="ag:copy">Копировать промпт для нейросети</button></div>` : ''}</div>`;
+      return `<div class="o-m bot"><div class="o-m-t">${fmtBotText(m.text)}</div>${(m.cards || []).join('')}${subj}${btns ? `<div class="o-m-b">${btns}</div>` : ''}${m.copyPrompt && isLast ? `<div class="o-m-b"><button class="o-chip" data-ag="ag:copy">Копировать промпт для нейросети</button></div>` : ''}</div>`;
     }).join('') + (busy ? '<div class="o-m bot typing"><i></i><i></i><i></i></div>' : '');
     const chips = $('ag-chips');
     if (chips) {
@@ -1581,4 +1855,13 @@
     if (scroll !== false && (A.panel || 'chat') === 'chat') [0, 80, 300].forEach(d => setTimeout(() => { const ms = $('ag-msgs'); if (ms) ms.scrollTop = ms.scrollHeight; }, d));
     return x; }; }
   O.motion = () => document.documentElement.getAttribute('data-motion') || 'full';
+
+  window.addEventListener('orbit-llm-limit', (ev) => {
+    try {
+      const msg = (ev.detail && ev.detail.msg) || 'Лимиты нейросети завершены. Перехожу на встроенные навыки (без облака).';
+      if (A && A.push) A.push({ role: 'bot', text: msg });
+      else if (O.core && O.core().toast) O.core().toast(msg, 4000);
+    } catch (e) {}
+  });
+
 })();

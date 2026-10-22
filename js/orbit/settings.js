@@ -74,6 +74,8 @@
     { id: 'bus', title: 'Автобусы', icon: 'bus', items: [
       { t: 'num', k: 'rideDefault', label: 'Время в пути по умолчанию, мин', min: 1, max: 120 }, { t: 'num', k: 'showBuses', label: 'Сколько рейсов показывать', min: 1, max: 8 }] },
     { id: 'agent', title: 'Агент', icon: 'sparkle', items: [
+      { t: 'toggle', k: 'agentChipCats', label: 'Больше кнопок в чате по категориям', hint: 'Доп. быстрые действия: расписание, цели, помидор, память, схемы… (по умолчанию выкл.)' },
+      { t: 'range', k: 'agentMemCap', label: 'Память чата (сообщений)', min: 0, max: 5000, step: 50, unit: '', hint: '0 = без лимита. По умолчанию 300. Сколько последних реплик хранить локально.' },
       { t: 'toggle', k: 'agentSuggest', label: 'Учиться на привычках и подсказывать' },
       { t: 'seg', k: 'agentAutonomy', label: 'Изменения данных', opts: [['smart', 'Делать сразу + «Отменить»'], ['ask', 'Спрашивать «Да/Нет»']] },
       { t: 'toggle', k: 'voice', label: 'Голосовой ввод (если поддерживается)' },
@@ -105,6 +107,23 @@
       { t: 'range', k: 'storageLimitMB', label: 'Лимит данных', min: 5, max: 500, step: 5, unit: ' МБ', hint: 'При превышении Контур сам удаляет второстепенное: старые копии, старую переписку, историю калькулятора. Встречи, задачи, контакты и сценарии не удаляются никогда.' },
       { t: 'storageact' }] },
     { id: 'data', title: 'Данные и копии', icon: 'refresh', items: [{ t: 'toggle', k: 'autoBackup', label: 'Автокопия раз в сутки (последние 5)' }, { t: 'snaps' }] },
+    { id: 'focus', title: 'Концентрация и Помидор', icon: 'target', items: [
+      { t: 'toggle', k: 'focusMode', label: 'Режим концентрации при старте' },
+      { t: 'num', k: 'focusTimerMin', label: 'Авто-выход через (мин, 0 = выкл)', min: 0, max: 240 },
+      { t: 'text', k: 'focusUntil', label: 'Или до времени (ЧЧ:ММ)', hint: 'Например 18:00 — выход из концентрации' },
+      { t: 'num', k: 'pomoFocusMin', label: 'Помидор: фокус (мин)', min: 5, max: 120 },
+      { t: 'num', k: 'pomoBreakMin', label: 'Короткий перерыв (мин)', min: 1, max: 30 },
+      { t: 'num', k: 'pomoLongMin', label: 'Длинный перерыв (мин)', min: 5, max: 60 },
+      { t: 'num', k: 'pomoCycles', label: 'Циклов до длинного', min: 2, max: 8 },
+      { t: 'toggle', k: 'pomoSound', label: 'Звук и вибрация в конце фазы' }
+    ]},
+    { id: 'offline', title: 'Офлайн и кэш', icon: 'download', items: [
+      { t: 'seg', k: 'offlineMode', label: 'Режим прогрузки', opts: [['auto', 'Авто'], ['full', 'Полный'], ['minimal', 'Минимальный']], hint: 'Полный — схемы и калькулятор тоже в кэше' },
+      { t: 'btn', id: 'offline-preload', label: 'Прогрузить приложение для офлайн' }
+    ]},
+    { id: 'author', title: 'Автор и продукты', icon: 'users', items: [
+      { t: 'author' }
+    ]},
     { id: 'about', title: 'О приложении', icon: 'info', items: [{ t: 'about' }] }
   ];
   const open = new Set(['look']);
@@ -115,7 +134,15 @@
       case 'brand': return `<div class="o-brands">${O.brandList().map(b => `<button class="o-brand${(st.brand || 'contour') === b.id ? ' on' : ''}" data-sact="brand:${b.id}"><span class="o-brand-logo">${O.logo(b.id, 40)}</span><b>${esc(b.name)}</b><small>${esc(b.style)}</small><em>Агент: ${esc(b.agent)}</em></button>`).join('')}</div>`;
       case 'seg': return `<div class="o-set"><label>${it.label}</label>${it.hint ? `<small>${it.hint}</small>` : ''}<div class="o-segs">${it.opts.map(([x, l]) => `<button class="o-chip${(v === undefined ? it.opts[0][0] : v) === x ? ' on' : ''}" data-sk="${it.k}" data-sv="${x}">${l}</button>`).join('')}</div></div>`;
       case 'accent': return `<div class="o-set"><label>${it.label}</label>${it.hint ? `<small>${it.hint}</small>` : ''}<div class="o-sw-row">${O.ACCENTS.map(([n, c]) => `<button class="o-dot${(st.accentCustom || '').toLowerCase() === c ? ' on' : ''}" style="--c:${c}" data-sk="accentCustom" data-sv="${c}" aria-label="${n}"></button>`).join('')}<input type="color" class="o-colorin" data-sk="accentCustom" value="${/^#[0-9a-f]{6}$/i.test(st.accentCustom || '') ? st.accentCustom : '#8b5cf6'}" aria-label="Свой цвет"><button class="o-chip" data-sk="accentCustom" data-sv="">Как у бренда</button></div></div>`;
-      case 'range': return `<div class="o-set"><label>${it.label} <b>${v ?? ''}${it.unit || ''}</b></label>${it.hint ? `<small>${it.hint}</small>` : ''}<input type="range" data-sk="${it.k}" min="${it.min}" max="${it.max}" step="${it.step || 1}" value="${v ?? it.min}"></div>`;
+      case 'range': {
+        let show = v;
+        if (it.k === 'agentMemCap') {
+          if (v == null || v === '') show = 300;
+          show = (+show === 0) ? 'без лимита' : (show + (it.unit || ''));
+        } else show = (v ?? '') + (it.unit || '');
+        const val = it.k === 'agentMemCap' ? (v == null || v === '' ? 300 : v) : (v ?? it.min);
+        return `<div class="o-set"><label>${it.label} <b data-range-k="${it.k}">${show}</b></label>${it.hint ? `<small>${it.hint}</small>` : ''}<input type="range" data-sk="${it.k}" min="${it.min}" max="${it.max}" step="${it.step || 1}" value="${val}"></div>`;
+      }
       case 'toggle': { const on = it.on !== undefined ? v === it.on : v !== false && !!(v === undefined ? true : v); return `<label class="o-sw"><input type="checkbox" data-sk="${it.k}" data-on="${it.on ?? ''}" data-off="${it.off ?? ''}" ${it.perm ? 'data-perm="1"' : ''}${on ? ' checked' : ''}><i></i><span>${it.label}</span></label>`; }
       case 'num': return `<div class="o-set row"><label>${it.label}</label><input class="input o-num" type="number" inputmode="numeric" data-sk="${it.k}" min="${it.min}" max="${it.max}" value="${v ?? ''}">${it.hint ? `<small>${it.hint}</small>` : ''}</div>`;
       case 'time': return `<div class="o-set row"><label>${it.label}</label><input class="input o-num" type="time" data-sk="${it.k}" value="${esc(v || '')}"></div>`;
@@ -131,7 +158,7 @@
           <div class="o-wiz-steps" id="llm-wiz-steps">
             <div class="o-wiz-s"><span>1</span> Включите API сверху</div>
             <div class="o-wiz-s"><span>2</span> Выберите провайдер (сейчас: <b>${esc(pname)}</b>)</div>
-            <div class="o-wiz-s"><span>3</span> ${prov === 'giga' ? 'Заполните Client ID и Secret ниже (Proxy оставьте пустым)' : prov === 'custom' ? 'Укажите Endpoint и API Key ниже' : 'Ключ (для LLM7 можно пустым)'}</div>
+            <div class="o-wiz-s"><span>3</span> ${(() => { const P = (O.llmProviders || {})[prov] || {}; if (P.noKey || P.free) return 'Ключ не нужен — можно сразу проверять'; if (prov === 'giga') return 'Заполните Client ID и Secret ниже (Proxy оставьте пустым)'; if (prov === 'custom') return 'Укажите Endpoint и API Key ниже'; return 'Вставьте API Key ниже'; })()}</div>
             <div class="o-wiz-s"><span>4</span> Нажмите «Проверить подключение»</div>
           </div>
           <div class="o-wiz-actions">
@@ -150,10 +177,32 @@
       case 'note': return `<p class="o-note">${ic('info', 13)} ${it.text}</p>`;
       case 'btn': return `<button class="o-btn ghost" data-sact="${it.id}">${it.label}</button>`;
       case 'widgets': return `<div class="o-set"><label>Блоки главного экрана</label><small>Включайте нужные и меняйте порядок стрелками</small><ul class="o-wl">${O.widgetList().map((w, i, a) => `<li class="${w.on ? '' : 'off'}"><label class="o-sw"><input type="checkbox" data-sw="toggle:${w.id}"${w.on ? ' checked' : ''}><i></i><span>${esc(w.name)}</span></label><button class="o-ib" data-sw="up:${w.id}" ${i === 0 ? 'disabled' : ''} aria-label="Выше">${ic('chevD', 16)}</button><button class="o-ib" data-sw="down:${w.id}" ${i === a.length - 1 ? 'disabled' : ''} aria-label="Ниже">${ic('chevD', 16)}</button></li>`).join('')}</ul><button class="o-chip" data-sact="widgets-reset">Сбросить порядок</button></div>`;
-      case 'agentmem': { const hb = O.habits.size(); return `<div class="o-set"><small>Привычек записано: ${hb}. Данные хранятся только на этом устройстве.</small><div class="o-segs"><button class="o-chip" data-sact="habits-clear">Забыть привычки</button><button class="o-chip" data-sact="agent-mem">Что помнит агент</button></div></div>`; }
+      case 'agentmem': {
+        const hb = O.habits.size();
+        const st = S().settings || {};
+        const cap = st.agentMemCap === 0 || st.agentMemCap === '0' ? 0 : (+st.agentMemCap || 300);
+        const n = (O.assistant && O.assistant.msgs) ? O.assistant.msgs.length : 0;
+        const capLab = cap === 0 ? 'без лимита' : String(cap);
+        return `<div class="o-set"><small>В памяти чата: <b>${n}</b> из <b>${capLab}</b>. Привычек: ${hb}. Данные на этом устройстве.</small>
+          <div class="o-segs"><button class="o-chip" data-sact="habits-clear">Забыть привычки</button><button class="o-chip" data-sact="agent-mem">Что помнит агент</button></div></div>`;
+      }
       case 'snaps': { const l = O.backup.list(); return `<div class="o-set"><div class="o-segs"><button class="o-btn ghost sm" data-sact="snap-now">Сделать копию</button><button class="o-btn ghost sm" data-sact="export-all">Скачать всё (JSON)</button><button class="o-btn ghost sm" data-sact="import-all">Импорт</button></div><ul class="o-snaps">${l.map((x, i) => `<li><span>${new Date(x.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc(x.label)}</span><button class="o-chip" data-sact="snap-restore:${i}">Вернуть</button></li>`).join('') || '<li class="o-muted">Копий пока нет</li>'}</ul><button class="o-link danger" data-sact="reset">Сбросить все данные…</button></div>`; }
       case 'storage': return O.storage ? O.storage.html() : '';
       case 'storageact': return O.storage ? O.storage.actions() : '';
+      case 'author': {
+        return `<div class="o-set">
+          <label>Автор FlowForge / Контура</label>
+          <p class="o-note">Смолянинов Александр · ASV Prod</p>
+          <div class="o-segs" style="flex-direction:column;align-items:stretch;gap:8px">
+            <a class="o-btn" href="https://smol0901-jpg.github.io/Flowforge-2-3/" target="_blank" rel="noopener">${ic('flow',16)} Продукты</a>
+            <a class="o-btn ghost" href="https://t.me/ASV_prod" target="_blank" rel="noopener">${ic('message',16)} Связь с автором</a>
+            <a class="o-chip" href="https://github.com/smol0901-jpg" target="_blank" rel="noopener">GitHub</a>
+            <a class="o-chip" href="https://dzen.ru/asv_prod" target="_blank" rel="noopener">Дзен</a>
+            <a class="o-chip" href="https://vk.com/smolyaninovchef" target="_blank" rel="noopener">VK</a>
+          </div>
+          <small>Две отдельные кнопки: каталог продуктов и прямой контакт.</small>
+        </div>`;
+      }
       case 'about': { const b = O.brand(); return `<div class="o-about"><span data-brand-logo="54"></span><div><b>${esc(b.name)}</b> <em>v${C().version}</em><div class="o-muted">${esc(b.tag)}</div></div></div><div class="o-segs">${O.canInstall && O.canInstall() ? `<button class="o-btn" data-sact="install">${ic('download', 16)} Установить</button>` : ''}<button class="o-btn ghost" data-sact="update">${ic('refresh', 16)} Проверить обновление</button></div><p class="o-muted">Горячие клавиши: <kbd>Ctrl</kbd>+<kbd>K</kbd> — агент, <kbd>1</kbd>–<kbd>5</kbd> — разделы (на ПК).</p>`; }
     }
     return '';
@@ -175,6 +224,12 @@
   async function sact(a, p) {
     const core = C(), s = S();
     if (a.startsWith('st-') && O.storage) return O.storage.act(a, p);
+    if (a === 'offline-preload') {
+      core.toast('Прогрузка…');
+      const r = await (O.offline && O.offline.preload());
+      core.toast((r && r.msg) || 'Готово');
+      return;
+    }
     if (a === 'brand') { set('brand', p); O.renderSettings(); core.toast('Бренд: ' + O.brands[p].name); }
     else if (a === 'widgets-reset') { set('widgets', null); O.renderSettings(); }
     else if (a === 'habits-clear') { O.habits.clear(); core.toast('Привычки очищены'); O.renderSettings(); }
@@ -244,5 +299,20 @@
     else set(k, el.value);
     if (el.type === 'range') O.renderSettings();
   });
-  document.addEventListener('input', e => { const el = e.target; if (el.type === 'range' && el.closest && el.closest('#settings-root')) { const lab = el.parentElement.querySelector('label b'); if (lab) lab.textContent = el.value + (el.parentElement.querySelector('label b').textContent.replace(/[\d.-]/g, '') || ''); set(el.dataset.sk, +el.value); } if (el.type === 'color' && el.closest && el.closest('#settings-root')) set('accentCustom', el.value); });
+  document.addEventListener('input', e => {
+    const el = e.target;
+    if (el.type === 'range' && el.closest && el.closest('#settings-root')) {
+      const lab = el.parentElement.querySelector('label b');
+      const k = el.dataset.sk;
+      if (lab) {
+        if (k === 'agentMemCap') lab.textContent = (+el.value === 0) ? 'без лимита' : el.value;
+        else {
+          const unit = (lab.textContent.match(/[^\d.-]+$/) || [''])[0];
+          lab.textContent = el.value + unit;
+        }
+      }
+      set(k, +el.value);
+    }
+    if (el.type === 'color' && el.closest && el.closest('#settings-root')) set('accentCustom', el.value);
+  });
 })();

@@ -109,9 +109,9 @@
       } catch (e) { return ''; }
     };
 
-    const sample = list.slice(-12).map(m => {
+    const sample = list.slice(-40).map(m => {
       const who = m.role === 'user' ? 'Вы' : 'Орби';
-      return '· ' + fmt(m.at) + ' — ' + who + ': ' + String(m.text || '').slice(0, 120);
+      return '· ' + fmt(m.at) + ' — ' + who + ': ' + String(m.text || '');
     });
 
     return {
