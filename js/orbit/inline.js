@@ -29,13 +29,15 @@
   function dockEl() {
     let d = $('ag-dock'); if (d) return d;
     const host = document.querySelector('#agent-root .o-agent'); if (!host) return null;
-    d = document.createElement('div'); d.id = 'ag-dock'; d.className = 'o-dock'; d.hidden = true;
+    d = document.createElement('div'); d.id = 'ag-dock'; d.className = 'o-dock o-dock-inchat'; d.hidden = true;
     d.innerHTML = `<div class="o-dock-h"><b>Калькулятор</b>
-      <span class="o-dock-sub">в чате · все разделы CIFRA внизу</span>
+      <span class="o-dock-sub">в контейнере чата</span>
       <button type="button" class="o-ib" data-dact="min" aria-label="Свернуть">▾</button><button type="button" class="o-ib" data-dact="close" aria-label="Закрыть">✕</button></div>
+      <div class="o-dock-tabs" id="ag-dock-tabs"></div>
       <div class="o-dock-b"></div>`;
+    // Внутри ленты сообщений — не под composer
     const msgs = host.querySelector('#ag-msgs') || host.querySelector('.o-msgs');
-    if (msgs && msgs.parentNode) msgs.parentNode.insertBefore(d, msgs);
+    if (msgs) msgs.appendChild(d);
     else host.appendChild(d);
     d.addEventListener('click', e => {
       const t = e.target.closest('[data-dtab]'); if (t) { I.openCalc({ tab: t.dataset.dtab }); return; }
@@ -59,10 +61,21 @@
     const chat = (!O.assistant.panel || O.assistant.panel === 'chat');
     d.hidden = !(dock.open && chat);
     d.classList.toggle('min', !!dock.min);
+    const tabs = d.querySelector('#ag-dock-tabs');
+    if (tabs && !tabs.dataset.ready) {
+      tabs.innerHTML = DOCK_TABS.map(([id, lab]) => `<button type="button" class="o-chip" data-dtab="${id}">${lab}</button>`).join('');
+      tabs.dataset.ready = '1';
+    }
     d.querySelectorAll('[data-dtab]').forEach(b => b.classList.toggle('on', b.dataset.dtab === dock.tab));
     const m = d.querySelector('[data-dact="min"]'); if (m) m.textContent = dock.min ? '▴' : '▾';
+    if (dock.open && chat) {
+      try { d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
+    }
   }
-  I.sync = syncDock;
+  I.sync = function () {
+    syncDock();
+    try { if (typeof syncFlowDock === 'function') syncFlowDock(); } catch (e) {}
+  };
   I.openCalc = function (o) {
     o = o || {};
     if (O.actions && O.actions.go && (!window.OrbitCore || OrbitCore.tab !== 'agent')) O.actions.go('agent');
@@ -73,6 +86,61 @@
     if (f) { if (o.tab) post({ type: 'orbit-calc', tab: o.tab }); if (o.expr) post({ type: 'orbit-calc', expr: o.expr, tab: 'calc' }); }
   };
   I.closeCalc = function () { dock.open = false; syncDock(); };
+
+  /* ═══════════ FlowForge в контейнере чата ═══════════ */
+  const flowDock = I.flowDock = { open: false, min: false };
+  function flowDockEl() {
+    let d = $('ag-flow-dock'); if (d) return d;
+    const host = document.querySelector('#agent-root .o-agent'); if (!host) return null;
+    d = document.createElement('div'); d.id = 'ag-flow-dock'; d.className = 'o-dock o-dock-inchat'; d.hidden = true;
+    d.innerHTML = `<div class="o-dock-h"><b>Схемы</b>
+      <span class="o-dock-sub">FlowForge в контейнере</span>
+      <button type="button" class="o-ib" data-fdact="min" aria-label="Свернуть">▾</button>
+      <button type="button" class="o-ib" data-fdact="close" aria-label="Закрыть">✕</button>
+      <button type="button" class="o-chip" data-fdact="full">Полный экран</button></div>
+      <div class="o-dock-b"></div>`;
+    const msgs = host.querySelector('#ag-msgs') || host.querySelector('.o-msgs');
+    if (msgs) msgs.appendChild(d); else host.appendChild(d);
+    d.addEventListener('click', e => {
+      const a = e.target.closest('[data-fdact]'); if (!a) return;
+      if (a.dataset.fdact === 'close') { flowDock.open = false; syncFlowDock(); }
+      else if (a.dataset.fdact === 'min') { flowDock.min = !flowDock.min; syncFlowDock(); }
+      else if (a.dataset.fdact === 'full') { if (O.actions && O.actions.go) O.actions.go('flow'); }
+    });
+    return d;
+  }
+  function syncFlowDock() {
+    if (!flowDock.open) {
+      const d0 = document.getElementById('ag-flow-dock');
+      if (d0) d0.hidden = true;
+      return;
+    }
+    const d = flowDockEl(); if (!d) return;
+    let f = d.querySelector('iframe');
+    if (!f) {
+      f = document.createElement('iframe'); f.id = 'ag-flow-frame'; f.title = 'FlowForge в чате';
+      f.src = 'flowforge/index.html?embed=1'; f.allow = 'clipboard-read; clipboard-write';
+      d.querySelector('.o-dock-b').appendChild(f);
+    }
+    const chat = (!O.assistant.panel || O.assistant.panel === 'chat');
+    d.hidden = !(flowDock.open && chat);
+    d.classList.toggle('min', !!flowDock.min);
+    const m = d.querySelector('[data-fdact="min"]'); if (m) m.textContent = flowDock.min ? '▴' : '▾';
+  }
+  I.openFlowInChat = function () {
+    if (O.actions && O.actions.go && (!window.OrbitCore || OrbitCore.tab !== 'agent')) O.actions.go('agent');
+    if (O.assistant.panel && O.assistant.panel !== 'chat') { O.assistant.panel = 'chat'; O.assistant.render(false); }
+    const d = flowDockEl();
+    let f = d.querySelector('iframe');
+    if (!f) {
+      f = document.createElement('iframe'); f.id = 'ag-flow-frame'; f.title = 'FlowForge в чате';
+      f.src = 'flowforge/index.html?embed=1'; f.allow = 'clipboard-read; clipboard-write';
+      d.querySelector('.o-dock-b').appendChild(f);
+    }
+    flowDock.open = true; flowDock.min = false; syncFlowDock();
+  };
+  I.closeFlowInChat = function () { flowDock.open = false; syncFlowDock(); };
+
   function feedDock(expr) { if (dock.open) post({ type: 'orbit-calc', expr: expr, tab: 'calc' }); }
 
 

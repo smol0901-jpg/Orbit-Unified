@@ -898,11 +898,76 @@
     });
   }, 'share-sheet');
 
+
+  // Диаграммы: круговая, гистограмма, занятость, состояния, journey, C4
+  on(/^(?:диаграмм[аы]?|diagrams?|открой\s+диаграмм)\s*$/i, () => {
+    if (O.diagrams && O.diagrams.openEditor) O.diagrams.openEditor('pie');
+    return R('Редактор диаграмм: круговая, гистограмма, занятость, состояния, путь пользователя, C4.', {
+      buttons: [
+        btn('Круговая', 'cmd:круговая диаграмма'),
+        btn('Гистограмма', 'cmd:гистограмма'),
+        btn('Занятость', 'cmd:диаграмма занятости'),
+        btn('Редактор', 'tab:diagrams')
+      ]
+    });
+  }, 'diagrams-hub');
+  on(/(?:нарисуй|создай|построй|покажи)?\s*(?:кругов(ую|ая)\s*диаграмм|pie\s*chart|диаграмм[ау]\s*долей)/i, () => {
+    const doc = O.diagrams ? O.diagrams.fromAgentText('pie') : null;
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    return R('Круговая диаграмма — в карточке. Данные можно править в редакторе.', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams'), btn('Гистограмма', 'cmd:гистограмма')]
+    });
+  }, 'diagram-pie');
+  on(/(?:нарисуй|создай|построй|покажи)?\s*(?:гистограмм[ауы]?|столбчат|bar\s*chart)/i, () => {
+    const doc = O.diagrams ? O.diagrams.fromAgentText('bar') : null;
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    return R('Гистограмма — в карточке.', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams'), btn('Круговая', 'cmd:круговая диаграмма')]
+    });
+  }, 'diagram-bar');
+  on(/(?:диаграмм[аы]?\s*)?(?:занятост|свободн(ого|ое)\s*врем|busy\s*time|загрузк[аи]\s*дня)/i, () => {
+    const doc = O.diagrams ? O.diagrams.fromAgentText('busy') : null;
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    return R('Диаграмма занятости / свободного времени.', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams')]
+    });
+  }, 'diagram-busy');
+  on(/(?:диаграмм[аы]?\s*)?(?:состояний|state\s*machine|статусн)/i, () => {
+    const doc = O.diagrams ? O.diagrams.fromAgentText('state') : null;
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    return R('Диаграмма состояний.', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams')]
+    });
+  }, 'diagram-state');
+  on(/(?:путь\s*пользовател|user\s*journey|customer\s*journey|user\s*flow)/i, () => {
+    const doc = O.diagrams ? O.diagrams.fromAgentText('journey') : null;
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    return R('Путь пользователя (journey).', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams')]
+    });
+  }, 'diagram-journey');
+  on(/(?:c4|си4|контекстн(ая|ую)\s*диаграмм)/i, () => {
+    const doc = O.diagrams ? O.diagrams.fromAgentText('c4') : null;
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    return R('C4-контекст: система и окружение.', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams')]
+    });
+  }, 'diagram-c4');
+
+
   // Где схема / открыть схемы / flowforge
   on(/^(?:где\s+схем[аы]?|открой\s+схем[уыа]|схем[аы]?|flowforge|блок[- ]?схем)\s*$/i, () => {
-    // схемы: сначала в чате (мастер), полный редактор — только по кнопке
-    return R('Схемы собираются **в этом чате**. Напишите «создай схему» или «мастер схем». Полный редактор FlowForge — по кнопке ниже.', {
-      buttons: [btn('Мастер схем', 'cmd:мастер схем'), btn('Редактор (полный)', 'tab:flow')]
+    try {
+      if (O.inline && O.inline.openFlowInChat) O.inline.openFlowInChat();
+    } catch (e) {}
+    return R('FlowForge **в контейнере чата**. Мастер схем — текстом; полный экран — кнопкой.', {
+      buttons: [btn('Мастер схем', 'cmd:мастер схем'), btn('Полный экран', 'tab:flow')]
     });
   }, 'where-scheme');
 
@@ -1748,6 +1813,7 @@
     add('Напоминания', 'напоминания');
     add('Калькулятор', 'калькулятор');
     add('Схемы', 'где схема');
+    add('Диаграммы', 'диаграммы');
     add('Память', 'что было вчера');
     add('Концентрация', 'концентрация');
     add('Оформление', 'оформление');

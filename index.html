@@ -28,7 +28,8 @@
       <div class="rail-brand"><span data-brand-logo="38"></span><div><b data-brand-name>Контур</b><small data-brand-tag>Рабочее пространство</small></div></div>
       <nav class="rail-nav"><button class="nav-btn active" data-tab="today" title="Сегодня"><span class="nav-ic" data-ic="home"></span><span class="nav-l">Сегодня</span></button><button class="nav-btn" data-tab="schedule" title="Расписание"><span class="nav-ic" data-ic="calendar"></span><span class="nav-l">Расписание</span></button><button class="nav-btn" data-tab="buses" title="Транспорт"><span class="nav-ic" data-ic="bus"></span><span class="nav-l">Транспорт</span></button><button class="nav-btn" data-tab="agent" title="Агент"><span class="nav-ic" data-ic="sparkle"></span><span class="nav-l">Агент</span></button><button class="nav-btn" data-tab="contacts" title="Контакты"><span class="nav-ic" data-ic="phone"></span><span class="nav-l">Контакты</span></button><i class="rail-sep"></i><button class="nav-btn" data-tab="kanban" title="Канбан"><span class="nav-ic" data-ic="kanban"></span><span class="nav-l">Канбан</span></button><button class="nav-btn" data-tab="pack" title="Сборы"><span class="nav-ic" data-ic="bag"></span><span class="nav-l">Сборы</span></button><button class="nav-btn" data-tab="tasks" title="Задачи"><span class="nav-ic" data-ic="check"></span><span class="nav-l">Задачи</span></button><button class="nav-btn" data-tab="diary" title="Журнал"><span class="nav-ic" data-ic="book"></span><span class="nav-l">Журнал</span></button><button class="nav-btn" data-tab="notes" title="Заметки"><span class="nav-ic" data-ic="note"></span><span class="nav-l">Заметки</span></button><button class="nav-btn" data-tab="share" title="Обмен"><span class="nav-ic" data-ic="share"></span><span class="nav-l">Обмен</span></button>
 <button class="nav-btn" data-tab="calc" title="Калькулятор"><span class="nav-ic" data-ic="calc"></span><span class="nav-l">Калькулятор</span></button>
-<button class="nav-btn" data-tab="flow" title="Схемы"><span class="nav-ic" data-ic="flow"></span><span class="nav-l">Схемы</span></button></nav>
+<button class="nav-btn" data-tab="flow" title="Схемы"><span class="nav-ic" data-ic="flow"></span><span class="nav-l">Схемы</span></button>
+<button class="nav-btn" data-tab="diagrams" title="Диаграммы"><span class="nav-ic" data-ic="chart"></span><span class="nav-l">Диаграммы</span></button></nav>
       <div class="rail-foot"><button class="nav-btn" data-tab="profile" title="Профиль"><span class="nav-ic" data-ic="users"></span><span class="nav-l">Профиль</span></button><button class="nav-btn" data-tab="settings" title="Настройки"><span class="nav-ic" data-ic="sliders"></span><span class="nav-l">Настройки</span></button></div>
     </aside>
     <div class="shell">
@@ -153,6 +154,7 @@
         <section id="tab-share" class="tab"><div class="section-header"><h2>Обмен данными</h2><p class=subtitle>QR · файл · Bluetooth · код · ссылка</p></div><div id="share-root"></div></section>
         <section id="tab-calc" class="tab"><div class="embed-wrap"><iframe id="cifra-frame" src="cifra/index.html" title="CIFRA Pro" allow="clipboard-read; clipboard-write; microphone"></iframe></div></section>
         <section id="tab-flow" class="tab"><div class="embed-wrap"><iframe id="flow-frame" src="flowforge/index.html" title="FlowForge Studio" allow="clipboard-read; clipboard-write"></iframe></div></section>
+        <section id="tab-diagrams" class="tab"><div class="embed-wrap"><iframe id="diagrams-frame" src="diagrams/index.html" title="Диаграммы" allow="clipboard-read; clipboard-write"></iframe></div></section>
         <section id="tab-settings" class="tab"><div class="section-header"><h2>Настройки</h2><p class=subtitle>Бренд, главный экран, агент, данные</p></div><div id="settings-root"></div></section>
         <section id="tab-more" class="tab"><div class="section-header"><h2>Ещё</h2><p class=subtitle>Все разделы</p></div><div id="more-root"></div></section>
         <section id="tab-profile" class="tab">
@@ -207,6 +209,7 @@
   <script src="cifra/js/voice.js"></script>
   <script src="js/orbit/work.js"></script>
   <script src="js/orbit/tools.js"></script>
+  <script src="js/orbit/diagrams.js"></script>
   <script src="js/orbit/llm.js"></script>
   <script src="js/orbit/assistant.js"></script>
   <script src="js/orbit/inline.js"></script>

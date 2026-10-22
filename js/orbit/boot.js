@@ -11,6 +11,7 @@
       case 'contacts': O.renderContacts(); return true;
       case 'more': O.renderMore(); return true;
       case 'agent': O.assistant.render(true); return true;
+      case 'diagrams': return true;
       case 'share': O.share.render(); return true;
       case 'settings': O.renderSettings(); return true;
     }

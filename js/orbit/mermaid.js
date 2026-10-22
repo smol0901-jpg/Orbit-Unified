@@ -27,12 +27,16 @@
     if (starting) return Promise.resolve(false);
     starting = true;
     return new Promise(resolve => {
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
-      s.async = true;
-      s.onload = () => { starting = false; ensureMermaid().then(resolve); };
-      s.onerror = () => { starting = false; resolve(false); };
-      document.head.appendChild(s);
+      const trySrc = (src, next) => {
+        const el = document.createElement('script');
+        el.src = src;
+        el.async = true;
+        el.onload = () => { starting = false; ensureMermaid().then(resolve); };
+        el.onerror = () => { if (next) next(); else { starting = false; resolve(false); } };
+        document.head.appendChild(el);
+      };
+      // Офлайн: локальная копия, затем CDN
+      trySrc('./js/mermaid.min.js', () => trySrc('https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js'));
     });
   }
 

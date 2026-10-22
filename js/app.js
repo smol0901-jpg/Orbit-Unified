@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'orbit-planner-v3';
   const BACKUP_KEY = 'orbit-planner-backup-v3';
-  const APP_VERSION = '5.8.23';
+  const APP_VERSION = '5.8.25';
   const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   const DAYS_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
   const SUBJECTS = [
@@ -209,12 +209,12 @@
     fab.classList.toggle('hidden', !['schedule', 'tasks', 'notes', 'buses', 'kanban', 'contacts'].includes(tab));
     if (tab !== 'profile' || profileTab !== 'qr') stopQrScan();
     // CIFRA / FlowForge embeds need full-height main + ensure iframe src
-    const isEmbed = tab === 'calc' || tab === 'flow';
+    const isEmbed = tab === 'calc' || tab === 'flow' || tab === 'diagrams';
     document.body.classList.toggle('embed-tab', isEmbed);
     document.documentElement.classList.toggle('embed-tab', isEmbed);
     if (isEmbed) {
-      const frameId = tab === 'calc' ? 'cifra-frame' : 'flow-frame';
-      const src = tab === 'calc' ? 'cifra/index.html' : 'flowforge/index.html';
+      const frameId = tab === 'calc' ? 'cifra-frame' : (tab === 'diagrams' ? 'diagrams-frame' : 'flow-frame');
+      const src = tab === 'calc' ? 'cifra/index.html' : (tab === 'diagrams' ? 'diagrams/index.html' : 'flowforge/index.html');
       const fr = document.getElementById(frameId);
       if (fr) {
         if (!fr.getAttribute('src') || fr.getAttribute('src') === 'about:blank') {

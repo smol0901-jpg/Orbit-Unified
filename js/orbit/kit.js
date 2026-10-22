@@ -57,6 +57,7 @@
     flame: '<path d="M12 3c1 3.500 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 .3 1.500 1 2 1.800 2C10.500 8 11 5.500 12 3z"/>',
     eye: '<path d="M2 12s3.600-6.500 10-6.500S22 12 22 12s-3.600 6.500-10 6.500S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
     calc: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h.01M12 12h.01M16 12h.01M8 16h.01M12 16h.01M16 16h.01"/>',
+    chart: '<path d="M4 19V5M8 19v-6M12 19V9M16 19v-4M20 19V7"/><path d="M4 19h16"/>',
     flow: '<rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="8.5" y="16" width="7" height="5" rx="1"/><path d="M6.5 8v3h11V8M12 11v5"/>'
   };
   const fix = s => s;
