@@ -10,7 +10,14 @@
       case 'buses': O.renderBuses(); return true;
       case 'contacts': O.renderContacts(); return true;
       case 'more': O.renderMore(); return true;
-      case 'agent': O.assistant.render(true); return true;
+      case 'agent':
+        O.assistant.render(true);
+        try {
+          setTimeout(() => {
+            if (O.cards && O.cards.maybeProactive) O.cards.maybeProactive({});
+          }, 400);
+        } catch (e) {}
+        return true;
       case 'diagrams': return true;
       case 'share': O.share.render(); return true;
       case 'settings': O.renderSettings(); return true;

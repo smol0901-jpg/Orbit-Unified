@@ -961,6 +961,24 @@
   }, 'diagram-c4');
 
 
+
+  // Контекст экрана + проактив
+  on(/^(?:что\s+на\s+экране|контекст\s+экрана|что\s+ты\s+видишь|screen\s*context)\s*$/i, () => {
+    if (O.cards && O.cards.contextCard) {
+      O.cards.contextCard();
+      return R(''); // карточка уже в ленте
+    }
+    return R('Контекст недоступен.');
+  }, 'screen-ctx');
+  on(/^(?:сводка\s+дня|план\s+утра|вечерн(яя|ий)\s+сводк|проактив)\s*$/i, () => {
+    if (O.cards && O.cards.maybeProactive) {
+      const c = O.cards.maybeProactive({ force: true });
+      if (c) return R('');
+    }
+    return R('Сводка уже есть за этот слот сегодня — или включите «Проактивные карточки» в настройках агента.');
+  }, 'proactive-force');
+
+
   // Где схема / открыть схемы / flowforge
   on(/^(?:где\s+схем[аы]?|открой\s+схем[уыа]|схем[аы]?|flowforge|блок[- ]?схем)\s*$/i, () => {
     try {
@@ -1664,6 +1682,25 @@
     else if (a === 'unalias') { const k = decodeURIComponent(x || ''); delete mem.aliases[k]; saveMem(); push(R('Убрал привязку «' + k + '».', { buttons: [btn('Мои команды', 'cmd:мои команды')] })); }
     else if (a === 'pick') { const p = S().people.find(v => v.id === x); if (p) { if (pending.pickKey) { mem.aliases[pending.pickKey] = p.id; saveMem(); } push(R(y === 'sms' ? `Сообщение для ${p.name}.` : `Нажмите, чтобы позвонить: ${p.name}.`, { cards: [personCard(p, '')] })); } }
     else if (a === 'done') { const h = S().homework.find(v => v.id === x); if (h) { h.done = true; C().save(); C().render(); undoStack.push(() => { h.done = false; }); push(R(`Отметил: ${h.title}.`, { buttons: [btn('Отменить', 'ag:undo')] })); } }
+    else if (a === 'card-pin') {
+      const id = x || '';
+      if (O.cards && O.cards.pin) {
+        const st = (() => { try { return JSON.parse(localStorage.getItem('contour-agent-cards') || '{}'); } catch (e) { return {}; } })();
+        const was = st.live && st.live[id] && st.live[id].pin;
+        O.cards.pin(id, !was);
+      }
+      return;
+    }
+    else if (a === 'close-calc') {
+      try { if (O.inline && O.inline.closeCalc) O.inline.closeCalc(); } catch (e) {}
+      push(R('Калькулятор свёрнут.'));
+      return;
+    }
+    else if (a === 'close-flow') {
+      try { if (O.inline && O.inline.closeFlowInChat) O.inline.closeFlowInChat(); } catch (e) {}
+      push(R('Схемы свёрнуты.'));
+      return;
+    }
     else if (a === 'share-text' || a === 'share-png') {
       (async () => {
         try {
@@ -1814,6 +1851,7 @@
     add('Калькулятор', 'калькулятор');
     add('Схемы', 'где схема');
     add('Диаграммы', 'диаграммы');
+    add('На экране', 'что на экране');
     add('Память', 'что было вчера');
     add('Концентрация', 'концентрация');
     add('Оформление', 'оформление');
@@ -1988,7 +2026,7 @@
     if ((A.panel || 'chat') !== 'chat') return;
     const last = A.msgs.length - 1, ms = $('ag-msgs');
     if (!ms) return;
-    ms.innerHTML = A.msgs.map((m, i) => {
+    ms.innerHTML = A.msgs.filter(m => (m.text && String(m.text).trim()) || (m.cards && m.cards.length)).map((m, i) => {
       if (m.role === 'user') return `<div class="o-m me">${esc(m.text)}</div>`;
       const isLast = i === last, btns = (isLast ? (m.buttons || []) : []).map(x => `<button class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join('');
       const subj = m.legacySubjects && isLast ? `<div class="o-subj">${(C().SUBJECTS || []).map(x => `<button class="o-chip" data-ag="cmd:${esc(x)}">${esc(x)}</button>`).join('')}</div>` : '';
