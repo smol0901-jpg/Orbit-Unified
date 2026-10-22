@@ -636,3 +636,79 @@ body.embed-tab #tab-flow.active {
 .o-glass-md strong{font-weight:700;color:var(--accent)}
 .o-m-t .o-glass-md{margin-top:0}
 .o-chips-row{flex-wrap:wrap;max-height:none}
+
+/* Схема PNG в чате агента */
+.o-scheme-card .o-scheme-png {
+  padding: 10px 12px 4px;
+  text-align: center;
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+}
+.o-scheme-card .o-scheme-png img {
+  max-width: 100%;
+  width: auto;
+  max-height: min(52vh, 420px);
+  border-radius: 12px;
+  display: inline-block;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 12%, transparent);
+}
+.o-scheme-cap {
+  text-align: center;
+  padding: 8px 12px 12px;
+  margin: 0;
+  font-size: .88rem;
+}
+
+/* Embed calc/flow: ПК без нижней навигации — не прятать верх под шапку */
+@media (min-width: 720px) {
+  html.embed-tab .app-main,
+  body.embed-tab .app-main {
+    height: calc(100dvh - var(--header-h, 56px) - env(safe-area-inset-top, 0px));
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  html.embed-tab #tab-calc.active,
+  html.embed-tab #tab-flow.active,
+  body.embed-tab #tab-calc.active,
+  body.embed-tab #tab-flow.active {
+    flex: 1 1 auto;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    position: relative;
+  }
+}
+@media (max-width: 719px) {
+  html.embed-tab #tab-calc.active,
+  html.embed-tab #tab-flow.active,
+  body.embed-tab #tab-calc.active,
+  body.embed-tab #tab-flow.active {
+    height: calc(100dvh - var(--header-h, 56px) - var(--nav-h, 64px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* FAQ / help blocks in settings */
+.o-set-faq {
+  margin: 8px 0 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  background: color-mix(in srgb, var(--bg-card) 50%, transparent);
+  font-size: .82rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.o-set-faq b { color: var(--text); }
+.o-set-faq details { margin: 6px 0; }
+.o-set-faq summary { cursor: pointer; font-weight: 600; color: var(--text); }
+.o-feedback-area { width: 100%; min-height: 100px; margin: 8px 0; }
+.o-feedback-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+
+.o-chips-cat-label{
+  width:100%;font-size:.68rem;font-weight:600;color:var(--accent);
+  padding:2px 4px 0;opacity:.9;
+}
+.o-chip-muted{opacity:.65;border-style:dashed}
+.o-qr-card .o-qr-box{display:flex;justify-content:center;padding:12px;min-height:120px}
+.o-qr-card .o-qr-box svg{border-radius:12px;background:#fff;padding:8px}
