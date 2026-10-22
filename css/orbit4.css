@@ -753,3 +753,14 @@ body.embed-tab #tab-diagrams.active {
 }
 /* Не даём старому правилу раздувать iframe */
 #ag-dock iframe,#ag-flow-dock iframe{height:min(42vh,340px)!important}
+
+.o-live-card{position:relative}
+.o-card-live{
+  font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--ok,#22c55e);background:color-mix(in srgb,var(--ok,#22c55e) 18%,transparent);
+  padding:2px 8px;border-radius:999px;margin-left:auto
+}
+.o-card-body{padding:4px 12px 0;font-size:.9rem;line-height:1.45}
+.o-card-body .glass-table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.82rem}
+.o-card-body .glass-table td{padding:4px 6px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);vertical-align:top}
+.o-card-body .glass-table td:first-child{color:var(--text-muted);white-space:nowrap;width:3.5rem}
