@@ -409,12 +409,14 @@ button.o-sos-big{width:100%;text-align:left;cursor:pointer;font:inherit;color:in
   box-sizing: border-box;
 }
 #tab-calc.tab.active,
-#tab-flow.tab.active {
+#tab-flow.tab.active,
+#tab-diagrams.tab.active {
   display: block !important;
 }
 /* cancel app-main side/top padding for embed tabs */
 .app-main:has(#tab-calc.active),
-.app-main:has(#tab-flow.active) {
+.app-main:has(#tab-flow.active),
+.app-main:has(#tab-diagrams.active) {
   padding-left: 0 !important;
   padding-right: 0 !important;
   padding-top: 0 !important;
@@ -448,8 +450,10 @@ body.embed-tab .app-main {
 }
 html.embed-tab #tab-calc.active,
 html.embed-tab #tab-flow.active,
+html.embed-tab #tab-diagrams.active,
 body.embed-tab #tab-calc.active,
-body.embed-tab #tab-flow.active {
+body.embed-tab #tab-flow.active,
+body.embed-tab #tab-diagrams.active {
   height: calc(100dvh - var(--header-h, 56px) - var(--nav-h, 64px) - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) !important;
   min-height: 50vh !important;
 }
@@ -712,3 +716,40 @@ body.embed-tab #tab-flow.active {
 .o-chip-muted{opacity:.65;border-style:dashed}
 .o-qr-card .o-qr-box{display:flex;justify-content:center;padding:12px;min-height:120px}
 .o-qr-card .o-qr-box svg{border-radius:12px;background:#fff;padding:8px}
+
+.dg-preview{padding:10px 12px;text-align:center}
+.dg-preview svg,.dg-svg{max-width:100%;height:auto}
+.dg-legend{padding:0 12px 8px;font-size:.8rem}
+.dg-leg{display:flex;align-items:center;gap:6px;margin:3px 0}
+.dg-leg i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.o-dg-card{max-width:min(400px,100%)}
+
+/* Калькулятор / схемы — внутри ленты сообщений, не под composer */
+.o-dock-inchat{
+  flex:0 0 auto;width:100%;max-width:100%;
+  margin:8px 0 12px;border-radius:14px;
+  border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));
+  background:color-mix(in srgb,var(--bg-card) 92%,transparent);
+  box-shadow:0 8px 28px rgba(0,0,0,.18);
+  max-height:min(52vh,420px);
+}
+.o-dock-inchat .o-dock-tabs{padding:6px 8px;border-bottom:1px solid var(--line)}
+.o-dock-inchat .o-dock-b{min-height:0}
+.o-dock-inchat .o-dock-b iframe{
+  display:block;width:100%;border:0;
+  height:min(42vh,340px)!important;
+  max-height:340px;
+}
+.o-dock-inchat.min .o-dock-b,
+.o-dock-inchat.min .o-dock-tabs{display:none}
+#ag-dock.o-dock-inchat,#ag-flow-dock.o-dock-inchat{max-height:min(52vh,420px)}
+@media (max-width:480px){
+  .o-dock-inchat{max-height:min(48vh,360px);border-radius:12px}
+  .o-dock-inchat .o-dock-b iframe{height:min(38vh,280px)!important}
+}
+@media (min-width:900px){
+  .o-dock-inchat{max-width:min(560px,100%);margin-left:auto;margin-right:auto}
+  .o-dock-inchat .o-dock-b iframe{height:min(40vh,360px)!important}
+}
+/* Не даём старому правилу раздувать iframe */
+#ag-dock iframe,#ag-flow-dock iframe{height:min(42vh,340px)!important}
