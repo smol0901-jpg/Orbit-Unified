@@ -251,7 +251,10 @@
 
   // 0c) график
   on(/(график|нарисуй\s*(график|функц)?|plot|y\s*=)/i, (t, n) => {
+    // не путать с диаграммами / занятостью
+    if (/занят|свободн|диаграм|недел[яи]|pie|hist|гист|c4|journey|путь\s+польз/i.test(n)) return null;
     let expr = t.replace(/^(?:нарисуй|построй|покажи)?\s*(?:график\s*(?:функции)?|функци[юи]|plot)?\s*/i, '').replace(/^y\s*=\s*/i, '').trim();
+    if (/^(?:недел|занят|диаграм)/i.test(expr)) return null;
     let xmin = -10, xmax = 10;
     const range = n.match(/от\s*(-?\d+(?:[.,]\d+)?)\s*до\s*(-?\d+(?:[.,]\d+)?)/);
     if (range) { xmin = +range[1].replace(',', '.'); xmax = +range[2].replace(',', '.'); expr = expr.replace(/от\s*-?\d.+$/i, '').trim(); }
@@ -472,6 +475,44 @@
       buttons: [btn('Что взять', 'cmd:что взять ' + day.label), btn('Расписание', 'tab:schedule'), btn('Добавить', 'cmd:добавь встречу')]
     });
   }, 'day');
+  on(/^(?:отмена|отмени|отменить|cancel|стоп)$/i, () => {
+    try { if (typeof focusClear === 'function') focusClear(); } catch (e) {}
+    try { if (O.inline && O.inline.scheme && O.inline.scheme.active) { /* leave scheme mode */ } } catch (e) {}
+    return R('Ок, отменил. Чем помочь дальше?', { buttons: [btn('Помощь', 'cmd:помощь'), btn('Что дальше', 'cmd:что дальше')] });
+  }, 'cancel-cmd');
+
+  on(/^(?:можешь\\s+что[- ]?то\\s+ещ[её]|что\\s+ещ[её]\\s+умеешь|нужен\\s+ответ|подскажи|как\\s+оно|как\\s+дела)\\s*[.?!'']*$/i, () => {
+    return R('Могу: расписание и планы, задачи, напоминания, автобус, звонки, калькулятор, схемы, диаграммы, помидор. Спросите, например: «что у меня завтра вечером» или «круговая диаграмма».', {
+      buttons: [btn('Помощь', 'cmd:помощь'), btn('Планы завтра', 'cmd:планы на завтра'), btn('Диаграммы', 'cmd:диаграммы')]
+    });
+  }, 'soft-help');
+
+  on(/(?:какая\\s+)?погода|прогноз\\s+погоды|will\\s+it\\s+rain/i, () => {
+    return R('Погоду в агенте пока не подключал. Могу: расписание, задачи, автобус, напоминания, диаграммы.', {
+      buttons: [btn('Что дальше', 'cmd:что дальше'), btn('Задачи', 'cmd:что задано'), btn('Диаграммы', 'cmd:диаграммы')]
+    });
+  }, 'weather-soft');
+
+  on(/(?:какие\\s+)?планы?\\s+(?:у\\s+меня\\s+)?на\\s+завтрашн\\S*(?:\\s+вечер\\S*)?|(?:что|какие)\\s+(?:у\\s+меня\\s+)?(?:на\\s+)?завтрашн\\S*\\s*(?:вечер\\S*)?|(?:что|какие)\\s+(?:планы?|дела)\\s+(?:у\\s+меня\\s+)?(?:на\\s+)?(?:завтра|сегодня)(?:шн\\S*)?(?:\\s+вечер\\S*)?/i, (t, n, now) => {
+    const day = /сегодня/.test(n) && !/завтра/.test(n) ? { d: now, label: 'сегодня' } : { d: E.addDays(now, 1), label: 'завтра' };
+    let list = E.eventsOn(S(), day.d).list || [];
+    const wantEve = /вечер/.test(n);
+    if (wantEve) list = list.filter(e => (e.s || 0) >= 17 * 60);
+    if (!list.length) {
+      return R(wantEve ? ('На ' + day.label + ' вечером встреч нет.') : ('На ' + day.label + ' встреч в расписании нет.'), {
+        buttons: [btn('Расписание', 'tab:schedule'), btn('Задачи', 'cmd:что задано'), btn('Добавить', 'cmd:добавь встречу')]
+      });
+    }
+    const rows = list.slice(0, 12).map(e => {
+      const t0 = Math.floor((e.s || 0) / 60) + ':' + String((e.s || 0) % 60).padStart(2, '0');
+      return { left: t0, title: e.title || e.subject || e.name || 'Событие', meta: e.end ? (Math.floor(e.e / 60) + ':' + String(e.e % 60).padStart(2, '0')) : '' };
+    });
+    return R((wantEve ? 'Вечер' : 'Планы') + ' на ' + day.label + ': **' + list.length + '**.', {
+      cards: [glassTable('Планы · ' + day.label, rows, { count: list.length })],
+      buttons: [btn('Расписание', 'tab:schedule'), btn('Задачи', 'cmd:что задано')]
+    });
+  }, 'cancel-cmd', 'plans-eve');
+
 
   // 5) звонок / SMS
   /* ───── быстрый звонок и «Мои команды»: всё настраивает пользователь, имён в коде нет ───── */
@@ -537,6 +578,13 @@
     if (Date.now() > focus.exp) { const f0 = focus; focus = null; if (f0.onCancel) f0.onCancel(); return null; }
     const f = focus, n = N(text).trim().replace(/[.!?…]+$/, '').trim();
     if (F_CANCEL.test(n)) { focus = null; if (f.onCancel) f.onCancel(); return [R('Ок, отменил.')]; }
+    // Жёсткий выход из мастера на самостоятельные команды (диаграммы, день, автобус…)
+    const BREAK = /^(?:что\s+на\s+экране|сводка\s+дня|диаграмм|кругов|гист|занятост|c4|путь\s+пользовател|когда\s+(?:автобус|выходить)|я\s+освободился|что\s+дальше|что\s+задано|задачи\s+на|планы?\s+на|что\s+у\s+меня|помощь|что\s+ты\s+умеешь|калькулятор|помидор|qr\s+приложен)/i;
+    if (BREAK.test(n) || BREAK.test(String(text).trim())) {
+      focus = null;
+      if (f.onCancel) try { f.onCancel(); } catch (e) {}
+      return null;
+    }
     let r = null;
     try { r = f.fn(String(text).trim(), n, f.data); } catch (e) { console.error('focus', f.kind, e); focus = null; return null; }
     if (!r) { if (focus === f) { focus = null; if (f.onCancel) f.onCancel(); } return null; }   // не по теме — обычная обработка
@@ -666,7 +714,7 @@
     const h = { id: C().uid(), subject: subj || '', title: rest, due: due ? E.dateStr(due.d) : '', done: false, priority: pr };
     return change(`Задача${subj ? ' по теме «' + subj + '»' : ''}: ${rest}${due ? ', на ' + due.label : ''}${pr === 'high' ? ', важное' : ''}.`, () => S().homework.push(h), () => { const s = S(); s.homework = s.homework.filter(x => x.id !== h.id); });
   }, 'hw-add');
-  on(/^(?:дз|домашк[а-яё]*|домашнее задание|задания?|что делать|задачи|мои задачи|список задач|открытые задачи|все задачи|что по задачам)\s*$/i, (t, n, now) => {
+  on(/^(?:дз|домашк[а-яё]*|домашнее задание|задания?|что делать|задачи|мои задачи|список задач|открытые задачи|все задачи|что по задачам|есть задачи|какие задачи|задачи есть)\s*$/i, (t, n, now) => {
     const g = E.hwGroups(S(), now), list = [...g.overdue, ...g.today, ...g.tomorrow, ...g.week];
     if (!list.length) return R('Открытых задач нет.', { buttons: [btn('Добавить задачу', 'cmd:добавь задачу'), btn('Задачи', 'tab:tasks')] });
     return R(`Открытых задач: **${list.length}**.`, { cards: [glassTable('Задачи', list.slice(0, 10).map(h => ({ left: h.subject || '—', title: h.title || '', meta: h.due ? ('до ' + h.due.slice(8) + '.' + h.due.slice(5, 7)) : '' })), { count: list.length })], buttons: [btn('Открыть задачи', 'tab:tasks')] });
@@ -900,15 +948,39 @@
 
 
   // Диаграммы: круговая, гистограмма, занятость, состояния, journey, C4
-  on(/^(?:диаграмм[аы]?|diagrams?|открой\s+диаграмм)\s*$/i, () => {
-    if (O.diagrams && O.diagrams.openEditor) O.diagrams.openEditor('pie');
-    return R('Редактор диаграмм: круговая, гистограмма, занятость, состояния, путь пользователя, C4.', {
-      buttons: [
-        btn('Круговая', 'cmd:круговая диаграмма'),
-        btn('Гистограмма', 'cmd:гистограмма'),
-        btn('Занятость', 'cmd:диаграмма занятости'),
-        btn('Редактор', 'tab:diagrams')
-      ]
+  on(/(?:^|\s)(?:создай|нарисуй|построй|покажи|открой)?\s*(?:мне\s+)?(?:диаграмм[ауые]|diagrams?)(?:\s|$)|где\s+(?:посмотреть\s+)?диаграмм|диаграмм[аы]?\s+(?:занят|свободн|кругл|долей)/i, (t, n) => {
+    let type = 'pie';
+    if (/гист|столб|bar/i.test(n)) type = 'bar';
+    else if (/занят|свободн|busy/i.test(n)) type = 'busy';
+    else if (/состоян|state/i.test(n)) type = 'state';
+    else if (/journey|путь\s+польз/i.test(n)) type = 'journey';
+    else if (/\bc4\b|контекст/i.test(n)) type = 'c4';
+    else if (/кругл|pie|долей/i.test(n)) type = 'pie';
+    const doc = O.diagrams ? O.diagrams.fromAgentText(type) : null;
+    // busy from schedule
+    if (type === 'busy' && doc && O.engine) {
+      try {
+        const now = new Date();
+        const list = O.engine.eventsOn(S(), now).list || [];
+        if (list.length) {
+          doc.blocks = list.slice(0, 8).map(e => ({
+            label: e.title || e.subject || 'Событие',
+            start: Math.floor((e.s || 0) / 60),
+            end: Math.max(Math.floor((e.s || 0) / 60) + 1, Math.floor((e.e || e.s || 0) / 60)),
+            kind: 'busy'
+          }));
+          doc.title = 'Занятость сегодня';
+          if (O.diagrams.storeSave) O.diagrams.storeSave(doc);
+        }
+      } catch (e) {}
+    }
+    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
+    if (O.diagrams && O.diagrams.openEditor) {
+      /* не уводим с агента сразу — карточка в чате */
+    }
+    return R('Диаграмма «' + (O.diagrams && O.diagrams.TYPES[type] ? O.diagrams.TYPES[type].title : type) + '» в карточке.', {
+      cards: card ? [card] : [],
+      buttons: [btn('Редактор', 'tab:diagrams'), btn('Круговая', 'cmd:круговая диаграмма'), btn('Занятость', 'cmd:диаграмма занятости')]
     });
   }, 'diagrams-hub');
   on(/(?:нарисуй|создай|построй|покажи)?\s*(?:кругов(ую|ая)\s*диаграмм|pie\s*chart|диаграмм[ау]\s*долей)/i, () => {
@@ -1325,7 +1397,7 @@
     return R(r.msg);
   }, 'diary');
 
-  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'help-full', 'pomo-start', 'pomo-word', 'pomo-pause', 'pomo-reset', 'pomo-status', 'pomo-pin', 'focus-mode', 'where-scheme', 'share-sheet', 'scheme-in', 'note-wizard', 'task-ask', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'dates-between', 'dates-until', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal-list', 'goal', 'remind-list', 'settings', 'settings-agent', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
+  const PRI = ['script', 'sos', 'mycmds', 'favcall', 'help-full', 'pomo-start', 'pomo-word', 'pomo-pause', 'pomo-reset', 'pomo-status', 'pomo-pin', 'focus-mode', 'screen-ctx', 'proactive-force', 'diagrams-hub', 'diagram-pie', 'diagram-bar', 'diagram-busy', 'diagram-state', 'diagram-journey', 'diagram-c4', 'where-scheme', 'share-sheet', 'scheme-in', 'plans-eve', 'weather-soft', 'soft-help', 'note-wizard', 'task-ask', 'cloud-sync', 'cloud-status', 'cron-list', 'cfriend', 'wall-post', 'wall-read', 'cdm', 'cron-add', 'dates-between', 'dates-until', 'calc', 'route-add', 'graph', 'scheme', 'recall', 'tools-help', 'undo', 'remind', 'hw-add', 'hw-done', 'forget', 'remember', 'lesson-del', 'lesson-rm', 'lesson-move', 'lesson-add', 'club-del', 'club-add', 'bus-del', 'bus-add', 'person-add', 'diary', 'note', 'goal-list', 'goal', 'remind-list', 'settings', 'settings-agent', 'theme', 'memory', 'help', 'day', 'now', 'pack'];
   const sortInt = () => { if (INT._s) return; INT._s = 1; const w = n => { const i = PRI.indexOf(n); return i < 0 ? (n === 'alias' ? 999 : n === 'script-name' ? 998 : 500) : i; }; INT.sort((a, b) => w(a.name) - w(b.name)); };
 
   // синонимы глаголов: «создай/сделай/заведи автобус» = «добавь автобус», «убери/сотри» = «удали»

@@ -837,7 +837,12 @@
     if ((m = t.match(/^(?:назови|переименуй|назвать)\s+(?:схему\s+)?(?:в\s+|как\s+)?[«"']?(.+?)[»"']?\s*$/i)) && (S.isActive() || /схем/i.test(t))) { snap(); S.name = m[1].trim(); touch(); persist(); return [preview('Назвал.')]; }
     if ((m = t.match(/^схема\s+называется\s+[«"']?(.+?)[»"']?\s*$/i))) { snap(); S.name = m[1].trim(); touch(); persist(); return [preview('Назвал.')]; }
     if (/^(?:отмени|отмена|верни)\s*(?:шаг|последний шаг|последнее)?$/.test(n) && S.hist.length && (S.isActive() || /шаг/.test(n))) { const p = JSON.parse(S.hist.pop()); S.name = p.name; S.steps = p.steps; persist(); return [preview('Отменил.')]; }
-    if ((m = t.match(/^(?:убери|удали|сотри)\s+(?:последний шаг|последнее|последний)\s*$/i))) { if (!S.steps.length) return [R('В схеме нет шагов.')]; snap(); const x = S.steps.pop(); persist(); return [preview('Убрал «' + x + '».')]; }
+    if (/^(?:убр[ий]|убери|удали|сотри|очисти)\s+(?:все\s+)?шаги?\s*$/i.test(n) || /^(?:убр[ий]|убери)\s+все\s*$/i.test(n)) {
+      if (!S.steps.length) return [R('В схеме уже нет шагов.')];
+      snap(); const k = S.steps.length; S.steps = []; persist(); touch();
+      return [preview('Убрал все шаги (' + k + ').')];
+    }
+    if ((m = t.match(/^(?:убери|удали|сотри|убри)\s+(?:последний шаг|последнее|последний)\s*$/i))) { if (!S.steps.length) return [R('В схеме нет шагов.')]; snap(); const x = S.steps.pop(); persist(); return [preview('Убрал «' + x + '».')]; }
     if ((m = t.match(/^(?:убери|удали|сотри)\s+шаг\s+(.+)$/i))) {
       const q = norm(m[1]), i = S.steps.findIndex(s => norm(s).includes(q)); if (i < 0) return [R('Не нашёл шаг «' + m[1] + '». Шаги: ' + S.steps.join(' → '))];
       snap(); const x = S.steps.splice(i, 1)[0]; persist(); touch(); return [preview('Убрал «' + x + '».')];

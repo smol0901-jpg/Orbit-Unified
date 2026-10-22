@@ -1,6 +1,6 @@
 {
-  "version": "5.8.26",
+  "version": "5.8.27",
   "build": 20261021,
   "name": "Контур",
-  "notes": "5.8.26: API карточек, live/pin, контекст экрана, проактив утро/вечер"
+  "notes": "5.8.27: NLU fixes from chat log — plans, tasks, diagrams, cancel, scheme clear"
 }
