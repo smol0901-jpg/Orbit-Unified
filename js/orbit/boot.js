@@ -110,32 +110,52 @@
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 
-/* FlowForge → агент: схема JSON / PNG */
+/* FlowForge → агент: схема JSON / PNG (карточка в контейнере чата) */
 window.addEventListener('message', (e) => {
   if (e.origin !== location.origin || !e.data || e.data.t !== 'ff-to-agent') return;
   try {
     const O = window.Orbit, A = O && O.assistant;
     const name = e.data.name || 'Схема';
+    const goAgent = () => {
+      try {
+        if (A) A.panel = 'chat';
+        if (O.core && O.core().switchTab) O.core().switchTab('agent');
+        setTimeout(() => { try { A && A.render && A.render(true); } catch (err) {} }, 80);
+      } catch (err) {}
+    };
     if (e.data.kind === 'json' && e.data.doc) {
       O._lastScheme = { name, doc: e.data.doc, at: Date.now() };
-      if (A && A.push) {
-        A.push({ role: 'bot', text: 'Получена схема «' + name + '» из FlowForge (' + (e.data.doc.nodes || []).length + ' блоков).', buttons: [
+      const n = (e.data.doc.nodes || []).length;
+      const msg = {
+        role: 'bot',
+        text: 'Схема «' + name + '» из FlowForge (' + n + ' блоков).',
+        cards: ['<div class="o-glass-card o-scheme-card"><div class="o-glass-h"><span>Схема · JSON</span><em>' + n + '</em></div><div class="o-glass-body" style="padding:12px 14px"><p class="o-glass-p"><b>' + String(name).replace(/</g,'&lt;') + '</b></p><p class="o-glass-p" style="color:var(--text-muted);font-size:.8rem">Документ в памяти агента. Откройте редактор или поделитесь.</p></div></div>'],
+        buttons: [
           { label: 'Открыть в редакторе', act: 'tab:flow' },
           { label: 'Поделиться', act: 'cmd:поделись схемой' }
-        ]});
-      }
-      if (O.core && O.core().switchTab) O.core().switchTab('agent');
+        ]
+      };
+      if (A && A.push) A.push(msg, { panel: 'chat' });
+      else if (A && A.msgs) { A.msgs.push(Object.assign({ at: Date.now() }, msg)); }
+      goAgent();
       if (O.core && O.core().toast) O.core().toast('Схема «' + name + '» в агенте');
     } else if (e.data.kind === 'png' && e.data.dataUrl) {
       O._lastSchemePng = { name, dataUrl: e.data.dataUrl, at: Date.now() };
-      const card = '<div class="o-qr-box"><img src="' + e.data.dataUrl + '" alt="' + name + '" style="max-width:100%;border-radius:12px"/><p><b>' + name + '</b></p></div>';
-      if (A && A.push) {
-        A.push({ role: 'bot', text: 'PNG схемы «' + name + '».', cards: [card], buttons: [
+      const safeAlt = String(name).replace(/"/g, '&quot;').replace(/</g, '&lt;');
+      const card = '<div class="o-glass-card o-scheme-card"><div class="o-glass-h"><span>Схема · PNG</span></div><div class="o-scheme-png"><img src="' + e.data.dataUrl + '" alt="' + safeAlt + '"/></div><p class="o-scheme-cap"><b>' + safeAlt + '</b></p></div>';
+      const msg = {
+        role: 'bot',
+        text: 'PNG схемы «' + name + '» — превью в карточке ниже.',
+        cards: [card],
+        buttons: [
           { label: 'Скачать PNG', act: 'cmd:скачай схему png' },
-          { label: 'Поделиться', act: 'cmd:поделись схемой' }
-        ]});
-      }
-      if (O.core && O.core().switchTab) O.core().switchTab('agent');
+          { label: 'Поделиться', act: 'cmd:поделись схемой' },
+          { label: 'В редактор', act: 'tab:flow' }
+        ]
+      };
+      if (A && A.push) A.push(msg, { panel: 'chat' });
+      else if (A && A.msgs) { A.msgs.push(Object.assign({ at: Date.now() }, msg)); }
+      goAgent();
       if (O.core && O.core().toast) O.core().toast('PNG схемы в агенте');
     }
   } catch (err) { console.error('ff-to-agent', err); }

@@ -228,11 +228,28 @@
     style.id = 'focus-mode-css';
     style.textContent = `
       .focus-mode .rail { display: none !important; }
+      /* ПК: одна колонка на всю ширину — без сжатия в угол */
+      .focus-mode.app, #app.focus-mode, .app.focus-mode {
+        grid-template-columns: 1fr !important;
+        width: 100% !important;
+      }
+      .focus-mode .shell {
+        width: 100% !important;
+        max-width: none !important;
+        min-width: 0 !important;
+        grid-column: 1 / -1;
+      }
       .focus-mode .tab-bar button:not([data-tab="today"]):not([data-tab="agent"]):not([data-tab="tasks"]):not([data-tab="schedule"]) { display: none !important; }
       .focus-mode #tab-more, .focus-mode #tab-share, .focus-mode #tab-kanban,
       .focus-mode #tab-pack, .focus-mode #tab-diary, .focus-mode #tab-contacts { display: none !important; }
       .focus-mode .o-w-insights, .focus-mode .o-w-week, .focus-mode .o-w-goals, .focus-mode .o-w-pack { display: none !important; }
-      .focus-mode .app-main { max-width: 720px; margin: 0 auto; }
+      .focus-mode .app-main {
+        max-width: min(960px, 100%) !important;
+        width: 100% !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+        box-sizing: border-box;
+      }
       .focus-mode #btn-focus-mode.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 18%, transparent); }
       .focus-badge { position: absolute; bottom: 2px; right: 2px; font-size: 9px; font-weight: 700; background: var(--accent); color: var(--on-accent, #fff); border-radius: 6px; padding: 0 3px; line-height: 1.3; }
       #btn-focus-mode { position: relative; }

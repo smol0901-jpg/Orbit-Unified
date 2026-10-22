@@ -74,7 +74,8 @@
     { id: 'bus', title: 'Автобусы', icon: 'bus', items: [
       { t: 'num', k: 'rideDefault', label: 'Время в пути по умолчанию, мин', min: 1, max: 120 }, { t: 'num', k: 'showBuses', label: 'Сколько рейсов показывать', min: 1, max: 8 }] },
     { id: 'agent', title: 'Агент', icon: 'sparkle', items: [
-      { t: 'toggle', k: 'agentChipCats', label: 'Больше кнопок в чате по категориям', hint: 'Доп. быстрые действия: расписание, цели, помидор, память, схемы… (по умолчанию выкл.)' },
+      { t: 'note', text: 'Под строкой ввода в чате агента — быстрые кнопки.\n• ВЫКЛ (по умолчанию): 4–5 кнопок по ситуации (Что дальше, Задачи, Помощь…).\n• ВКЛ: расширенный набор — Цели, Помидор, QR, Расписание, Калькулятор, Схемы, Память…\nОткройте вкладку Агент после переключения, чтобы увидеть разницу.' },
+      { t: 'toggle', k: 'agentChipCats', label: 'Расширенные кнопки в чате (категории)', hint: 'Выкл = мало кнопок. Вкл = много кнопок под полем ввода.' },
       { t: 'range', k: 'agentMemCap', label: 'Память чата (сообщений)', min: 0, max: 5000, step: 50, unit: '', hint: '0 = без лимита. По умолчанию 300. Сколько последних реплик хранить локально.' },
       { t: 'toggle', k: 'agentSuggest', label: 'Учиться на привычках и подсказывать' },
       { t: 'seg', k: 'agentAutonomy', label: 'Изменения данных', opts: [['smart', 'Делать сразу + «Отменить»'], ['ask', 'Спрашивать «Да/Нет»']] },
@@ -108,18 +109,28 @@
       { t: 'storageact' }] },
     { id: 'data', title: 'Данные и копии', icon: 'refresh', items: [{ t: 'toggle', k: 'autoBackup', label: 'Автокопия раз в сутки (последние 5)' }, { t: 'snaps' }] },
     { id: 'focus', title: 'Концентрация и Помидор', icon: 'target', items: [
-      { t: 'toggle', k: 'focusMode', label: 'Режим концентрации при старте' },
-      { t: 'num', k: 'focusTimerMin', label: 'Авто-выход через (мин, 0 = выкл)', min: 0, max: 240 },
-      { t: 'text', k: 'focusUntil', label: 'Или до времени (ЧЧ:ММ)', hint: 'Например 18:00 — выход из концентрации' },
-      { t: 'num', k: 'pomoFocusMin', label: 'Помидор: фокус (мин)', min: 5, max: 120 },
-      { t: 'num', k: 'pomoBreakMin', label: 'Короткий перерыв (мин)', min: 1, max: 30 },
-      { t: 'num', k: 'pomoLongMin', label: 'Длинный перерыв (мин)', min: 5, max: 60 },
-      { t: 'num', k: 'pomoCycles', label: 'Циклов до длинного', min: 2, max: 8 },
-      { t: 'toggle', k: 'pomoSound', label: 'Звук и вибрация в конце фазы' }
+      { t: 'note', text: 'Концентрация (кнопка ◎ в шапке): скрывает лишние вкладки и боковое меню, оставляет Сегодня / Агент / Задачи / Расписание. На ПК контент по центру на всю ширину.' },
+      { t: 'toggle', k: 'focusMode', label: 'Включать концентрацию при запуске приложения' },
+      { t: 'num', k: 'focusTimerMin', label: 'Авто-выход из концентрации (мин)', min: 0, max: 240, hint: '0 — не выходить автоматически' },
+      { t: 'text', k: 'focusUntil', label: 'Выйти из концентрации в указанное время', hint: 'Формат ЧЧ:ММ, например 18:00. Пусто — не использовать' },
+      { t: 'note', text: 'Помидор (команда «помидор» в агенте или виджет на Сегодня): таймер фокуса с кольцом. Длительности ниже — для пресетов и авто-циклов.' },
+      { t: 'num', k: 'pomoFocusMin', label: 'Длительность фокуса (мин)', min: 5, max: 120, hint: 'Классика — 25' },
+      { t: 'num', k: 'pomoBreakMin', label: 'Короткий перерыв (мин)', min: 1, max: 30, hint: 'Обычно 5' },
+      { t: 'num', k: 'pomoLongMin', label: 'Длинный перерыв (мин)', min: 5, max: 60, hint: 'После нескольких циклов, обычно 15' },
+      { t: 'num', k: 'pomoCycles', label: 'Циклов до длинного перерыва', min: 2, max: 8, hint: 'Обычно 4' },
+      { t: 'toggle', k: 'pomoSound', label: 'Звук и вибрация в конце фазы' },
+      { t: 'toggle', k: 'pomoOnDash', label: 'Показывать виджет помидора на «Сегодня»', hint: 'Если выкл. — только из агента' }
     ]},
     { id: 'offline', title: 'Офлайн и кэш', icon: 'download', items: [
       { t: 'seg', k: 'offlineMode', label: 'Режим прогрузки', opts: [['auto', 'Авто'], ['full', 'Полный'], ['minimal', 'Минимальный']], hint: 'Полный — схемы и калькулятор тоже в кэше' },
       { t: 'btn', id: 'offline-preload', label: 'Прогрузить приложение для офлайн' }
+    ]},
+    { id: 'support', title: 'Поддержка и выгрузка', icon: 'info', items: [
+      { t: 'note', text: 'Выгрузка переписки с агентом — для поиска сбоев. Обратная связь уходит на Chef40rever@ro.ru с темой Contour.' },
+      { t: 'support' }
+    ]},
+    { id: 'faq', title: 'Как настроить (справка)', icon: 'help', items: [
+      { t: 'faq' }
     ]},
     { id: 'author', title: 'Автор и продукты', icon: 'users', items: [
       { t: 'author' }
@@ -189,6 +200,66 @@
       case 'snaps': { const l = O.backup.list(); return `<div class="o-set"><div class="o-segs"><button class="o-btn ghost sm" data-sact="snap-now">Сделать копию</button><button class="o-btn ghost sm" data-sact="export-all">Скачать всё (JSON)</button><button class="o-btn ghost sm" data-sact="import-all">Импорт</button></div><ul class="o-snaps">${l.map((x, i) => `<li><span>${new Date(x.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc(x.label)}</span><button class="o-chip" data-sact="snap-restore:${i}">Вернуть</button></li>`).join('') || '<li class="o-muted">Копий пока нет</li>'}</ul><button class="o-link danger" data-sact="reset">Сбросить все данные…</button></div>`; }
       case 'storage': return O.storage ? O.storage.html() : '';
       case 'storageact': return O.storage ? O.storage.actions() : '';
+      case 'support': {
+        return `<div class="o-set">
+          <label>Отчёт без личных данных</label>
+          <small>Версия, устройство, флаги настроек (без текста чата, без контактов и коммерции). Для быстрого разбора сбоя.</small>
+          <div class="o-feedback-row">
+            <button type="button" class="o-chip" data-sact="diag-report">Скачать отчёт</button>
+            <button type="button" class="o-chip" data-sact="diag-mail">Отчёт на почту</button>
+          </div>
+        </div>
+        <div class="o-set" style="margin-top:14px">
+          <label>Переписка с агентом (по желанию)</label>
+          <small>Только если нужно разобрать диалог. Может содержать ваши фразы — не отправляйте, если есть коммерческая/личная тайна.</small>
+          <div class="o-feedback-row">
+            <button type="button" class="o-chip" data-sact="export-chat-json">Скачать JSON</button>
+            <button type="button" class="o-chip" data-sact="export-chat-txt">Скачать TXT</button>
+            <button type="button" class="o-chip" data-sact="export-chat-mail">Переписка на почту</button>
+          </div>
+        </div>
+        <div class="o-set" style="margin-top:14px">
+          <label>Обратная связь + скриншот</label>
+          <small>Тема письма всегда «Contour …». Скриншот: выберите файл — он скачается/откроется share; в письме укажите «см. вложение» и приложите вручную (почтовые клиенты на iOS/Android так надёжнее).</small>
+          <select class="input" id="fb-kind" style="margin-top:8px">
+            <option value="problem">Проблема / сбой</option>
+            <option value="wish">Пожелание</option>
+            <option value="agent">Агент</option>
+            <option value="tab">Вкладка / экран</option>
+            <option value="calc">Калькулятор</option>
+            <option value="flow">Схемы FlowForge</option>
+            <option value="other">Другое</option>
+          </select>
+          <textarea class="textarea o-feedback-area input" id="fb-text" placeholder="Опишите, что происходит или чего не хватает…"></textarea>
+          <input type="file" id="fb-shot" accept="image/*,.png,.jpg,.jpeg,.webp,.heic,application/pdf" style="margin-top:8px;width:100%" />
+          <div class="o-feedback-row">
+            <button type="button" class="o-btn pri" data-sact="feedback-send">Письмо на Chef40rever@ro.ru</button>
+            <button type="button" class="o-chip" data-sact="feedback-share">Поделиться (система)</button>
+          </div>
+        </div>`;
+      }
+      case 'faq': {
+        return `<div class="o-set-faq">
+          <details open><summary>Что такое «расширенные кнопки» в чате?</summary>
+            <p>Настройки → <b>Агент</b> → <b>«Расширенные кнопки в чате»</b>.\n• <b>Выкл</b> — 4–5 кнопок (Что дальше, Задачи, Помощь…).\n• <b>Вкл</b> — много кнопок: Цели, Помидор, QR, Расписание, Калькулятор, Схемы, Память…\nПосле переключения откройте вкладку <b>Агент</b> — ряд под полем ввода изменится. Кнопка «+ ещё» ведёт сюда же.</p>
+          </details>
+          <details><summary>Память чата</summary>
+            <p>Настройки → Агент → бегунок <b>Память чата</b>. 0 = без лимита, по умолчанию 300. В блоке «Что помнит агент» видно «N из M».</p>
+          </details>
+          <details><summary>Концентрация</summary>
+            <p>Кнопка ◎ в верхней панели. Раздел <b>Концентрация и Помидор</b>: авто-выход по минутам или до времени ЧЧ:ММ. На ПК боковое меню скрывается, контент на всю ширину.</p>
+          </details>
+          <details><summary>Помидор</summary>
+            <p>В агенте: «помидор» / «запусти помодоро 25». Длительности — в <b>Концентрация и Помидор</b>. Карточка в ленте чата, «Закрепить» — сверху.</p>
+          </details>
+          <details><summary>Схема в агент</summary>
+            <p>В FlowForge отправьте схему в агент (JSON или PNG). В чате должна появиться стеклянная карточка с превью. Если нет — обновите кэш (версия в «О приложении»).</p>
+          </details>
+          <details><summary>Выгрузка и поддержка</summary>
+            <p>Настройки → <b>Поддержка и выгрузка</b>: скачать переписку или написать на Chef40rever@ro.ru.</p>
+          </details>
+        </div>`;
+      }
       case 'author': {
         return `<div class="o-set">
           <label>Автор FlowForge / Контура</label>
@@ -220,7 +291,20 @@
     O.look(st); document.querySelectorAll('#settings-root [data-brand-logo]').forEach(e => e.innerHTML = O.logo(O.brand().id, +e.dataset.brandLogo || 28));
   };
 
-  function set(k, v) { const s = S(); s.settings[k] = v; C().save(); C().applyTheme(); }
+  function set(k, v) {
+    const s = S(); s.settings[k] = v; C().save(); C().applyTheme();
+    if (k === 'agentChipCats') {
+      try {
+        if (O.assistant && O.assistant.render) {
+          O.assistant.panel = 'chat';
+          O.assistant.render(true);
+        }
+        C().toast(v
+          ? 'Расширенные кнопки ВКЛ — откройте Агент: Цели, Помидор, QR, Схемы…'
+          : 'Короткий набор кнопок (выкл.) — только основные');
+      } catch (e) {}
+    }
+  }
   async function sact(a, p) {
     const core = C(), s = S();
     if (a.startsWith('st-') && O.storage) return O.storage.act(a, p);
@@ -234,6 +318,101 @@
     else if (a === 'widgets-reset') { set('widgets', null); O.renderSettings(); }
     else if (a === 'habits-clear') { O.habits.clear(); core.toast('Привычки очищены'); O.renderSettings(); }
     else if (a === 'agent-mem') O.assistant.ask('что ты помнишь');
+    else if (a === 'export-chat-json' || a === 'export-chat-txt' || a === 'export-chat-mail') {
+      try {
+        const A = O.assistant;
+        if (!A || !A.exportChat) { C().toast('Агент не готов'); return; }
+        const ex = A.exportChat();
+        const ver = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '') || '';
+        if (a === 'export-chat-json') {
+          const blob = new Blob([ex.json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url; link.download = 'contour-chat-' + Date.now() + '.json';
+          link.click(); URL.revokeObjectURL(url);
+          C().toast('JSON сохранён');
+        } else if (a === 'export-chat-txt') {
+          const blob = new Blob([ex.text], { type: 'text/plain;charset=utf-8' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url; link.download = 'contour-chat-' + Date.now() + '.txt';
+          link.click(); URL.revokeObjectURL(url);
+          C().toast('TXT сохранён');
+        } else {
+          const sub = encodeURIComponent('Contour ' + ver + ' — переписка агента / проблема');
+          const body = encodeURIComponent(
+            'Версия: ' + ver + '\\nСообщений: ' + ex.payload.count + '\\nДата: ' + ex.payload.exportedAt +
+            '\\n\\n--- Переписка ---\\n' + ex.text.slice(0, 8000) +
+            (ex.text.length > 8000 ? '\\n…(обрезано, приложите JSON)' : '')
+          );
+          location.href = 'mailto:Chef40rever@ro.ru?subject=' + sub + '&body=' + body;
+        }
+      } catch (e) { console.error(e); C().toast('Не удалось выгрузить'); }
+    }
+        else if (a === 'diag-report' || a === 'diag-mail') {
+      try {
+        const ver = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '') || (C().version || '');
+        const st = S().settings || {};
+        const safe = {
+          app: 'Contour', version: ver, at: new Date().toISOString(),
+          ua: navigator.userAgent || '', lang: navigator.language || '', online: navigator.onLine,
+          viewport: { w: window.innerWidth, h: window.innerHeight, dpr: window.devicePixelRatio || 1 },
+          flags: {
+            agentChipCats: !!st.agentChipCats, agentMemCap: st.agentMemCap, theme: st.theme,
+            llmProvider: st.llmProvider || null, offlineMode: st.offlineMode, focusMode: !!st.focusMode,
+            pomoFocusMin: st.pomoFocusMin
+          },
+          note: 'Diagnostic only. No chat, contacts, or commercial data.'
+        };
+        const json = JSON.stringify(safe, null, 2);
+        if (a === 'diag-report') {
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url; link.download = 'contour-diag-' + Date.now() + '.json';
+          link.click(); URL.revokeObjectURL(url);
+          C().toast('Отчёт сохранён (без личных данных)');
+        } else {
+          const sub = encodeURIComponent('Contour ' + ver + ' — диагностический отчёт');
+          const body = encodeURIComponent('Без переписки и контактов.\n\n' + json);
+          location.href = 'mailto:Chef40rever@ro.ru?subject=' + sub + '&body=' + body;
+        }
+      } catch (e) { C().toast('Не удалось собрать отчёт'); }
+    }
+    else if (a === 'feedback-send') {
+      try {
+        const kind = (document.getElementById('fb-kind') || {}).value || 'problem';
+        const text = ((document.getElementById('fb-text') || {}).value || '').trim();
+        if (!text) { C().toast('Напишите сообщение'); return; }
+        const ver = (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '') || '';
+        const labels = { problem: 'Проблема', wish: 'Пожелание', agent: 'Агент', tab: 'Вкладка', calc: 'Калькулятор', flow: 'Схемы', other: 'Другое' };
+        const sub = encodeURIComponent('Contour ' + ver + ' — ' + (labels[kind] || kind));
+        const body = encodeURIComponent(
+          'Категория: ' + (labels[kind] || kind) + '\\nВерсия: ' + ver +
+          '\\nУстройство: ' + (navigator.userAgent || '') +
+          '\\n\\n' + text
+        );
+        location.href = 'mailto:Chef40rever@ro.ru?subject=' + sub + '&body=' + body;
+        C().toast('Откройте почту; скриншот приложите вручную');
+      } catch (e) { C().toast('Не удалось открыть почту'); }
+    }
+    else if (a === 'feedback-share') {
+      (async () => {
+        try {
+          const text = ((document.getElementById('fb-text') || {}).value || '').trim() || 'Сообщение из Контура';
+          const fileEl = document.getElementById('fb-shot');
+          const shareData = { title: 'Contour feedback', text: text };
+          if (fileEl && fileEl.files && fileEl.files[0] && navigator.canShare && navigator.canShare({ files: [fileEl.files[0]] })) {
+            shareData.files = [fileEl.files[0]];
+          }
+          if (navigator.share) { await navigator.share(shareData); C().toast('Готово'); }
+          else C().toast('Share недоступен — используйте письмо');
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+          C().toast('Не удалось поделиться');
+        }
+      })();
+    }
     else if (a === 'llmprov') {
       if (O.llmApplyProvider) O.llmApplyProvider(p);
       else set('llmProvider', p);

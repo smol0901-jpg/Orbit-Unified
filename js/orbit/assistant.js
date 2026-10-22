@@ -843,21 +843,59 @@
     return R(on ? 'Режим концентрации: лишнее скрыто. Снова «концентрация» или кнопка сверху — выйти.' : 'Обычный режим.');
   }, 'focus-mode');
 
+  function makeAppQrCard() {
+    const url = (location.href || '').split('#')[0] || 'https://contour.app';
+    const id = 'ag-qr-' + Date.now();
+    // QR рисуется после render
+    setTimeout(() => {
+      try {
+        const host = document.getElementById(id);
+        if (!host || typeof qrcode === 'undefined') return;
+        const qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        host.innerHTML = qr.createSvgTag(5, 0);
+        const svg = host.querySelector('svg');
+        if (svg) { svg.style.width = '100%'; svg.style.maxWidth = '220px'; svg.style.height = 'auto'; }
+      } catch (e) { console.error('qr', e); }
+    }, 60);
+    return `<div class="o-glass-card o-qr-card" data-share-payload="${esc(url)}">
+      <div class="o-glass-h"><span>QR · приложение</span></div>
+      <div class="o-qr-box" id="${id}"><p class="o-glass-p">Генерация…</p></div>
+      <p class="o-scheme-cap"><small>${esc(url)}</small></p>
+      <div class="o-m-b" style="padding:0 12px 12px;display:flex;flex-wrap:wrap;gap:6px">
+        <button type="button" class="o-chip" data-ag="ag:share-text">Поделиться ссылкой</button>
+        <button type="button" class="o-chip" data-ag="tab:share">Раздел Обмен</button>
+      </div>
+    </div>`;
+  }
+  on(/^(?:покажи\s+)?(?:qr|куар|кьюар)(?:\s+код)?(?:\s+(?:приложени[яе]|контур|app|на\s+приложени[ея]))?\s*$/i, () => {
+    return R('QR-код приложения — наведите камеру другого телефона.', {
+      cards: [makeAppQrCard()],
+      buttons: [btn('Поделиться ссылкой', 'ag:share-text'), btn('Обмен', 'tab:share')]
+    });
+  }, 'qr-app');
   on(/^(?:подели(?:сь|ться)|share|qr|куар)\s*(.*)$/i, (t, n) => {
     const q = (n || '').replace(/^(?:подели(?:сь|ться)|share|qr|куар)\s*/i, '').trim();
-    const sheet = `<div class="o-share-sheet">
-      <button type="button" class="o-ch" data-act="share:app"><b>Приложение</b><small>QR на Контур</small></button>
-      <button type="button" class="o-ch" data-act="share:contact"><b>Контакт</b><small>vCard / QR</small></button>
-      <button type="button" class="o-ch" data-act="tab:share"><b>Данные</b><small>Раздел Обмен</small></button>
-      <button type="button" class="o-ch" data-act="tab:flow"><b>Схема</b><small>FlowForge</small></button>
-    </div>`;
-    if (/прилож|app|контур|ссылк/i.test(q)) {
-      return R('Ссылка на Контур:\n' + location.href.split('#')[0], { cards: [sheet], buttons: [btn('Обмен', 'tab:share')] });
+    if (/прилож|app|контур|ссылк|^$/i.test(q) || !q) {
+      return R('Ссылка и QR на Контур — в карточке. Можно сразу поделиться в мессенджер.', {
+        cards: [makeAppQrCard()],
+        buttons: [btn('Поделиться ссылкой', 'ag:share-text'), btn('Обмен', 'tab:share')]
+      });
     }
     if (/схем/i.test(q)) {
-      return R('Схема: откройте FlowForge → «В агент» / «PNG в агент», или раздел Схемы.', { cards: [sheet], buttons: [btn('Схемы', 'tab:flow')] });
+      const png = O._lastSchemePng;
+      if (png && png.dataUrl) {
+        const card = `<div class="o-glass-card o-scheme-card"><div class="o-glass-h"><span>Схема · PNG</span></div><div class="o-scheme-png"><img src="${png.dataUrl}" alt=""/></div>
+          <div class="o-m-b" style="padding:8px 12px 12px"><button type="button" class="o-chip" data-ag="ag:share-png">Поделиться PNG</button></div></div>`;
+        return R('Последняя схема из агента.', { cards: [card], buttons: [btn('Поделиться PNG', 'ag:share-png')] });
+      }
+      return R('Сначала отправьте схему из FlowForge в агент (кнопка PNG / в агент).', { buttons: [btn('Схемы', 'tab:flow')] });
     }
-    return R('Чем поделиться?', { cards: [sheet] });
+    return R('Чем поделиться?', {
+      cards: [makeAppQrCard()],
+      buttons: [btn('QR приложения', 'cmd:qr приложения'), btn('Обмен', 'tab:share')]
+    });
   }, 'share-sheet');
 
   // Где схема / открыть схемы / flowforge
@@ -1476,11 +1514,35 @@
   function push(m) {
     const entry = Object.assign({ at: Date.now() }, m);
     A.msgs.push(entry);
-     { const _c = memCap(); if (_c > 0 && A.msgs.length > _c) A.msgs = A.msgs.slice(-_c); }
+    { const _c = memCap(); if (_c > 0 && A.msgs.length > _c) A.msgs = A.msgs.slice(-_c); }
     if (O.work && O.work.pushMsg) O.work.pushMsg(mem, { role: entry.role, text: entry.text, at: entry.at });
     else { const _c = memCap(); mem.msgs = _c > 0 ? A.msgs.slice(-_c) : A.msgs.slice(); saveMem(); }
     if ((entry.role === 'user' || entry.role === 'bot') && entry.text) memPush({ role: entry.role, text: entry.text, at: entry.at });
   }
+  /** Внешний API: положить сообщение в чат и отрисовать (схемы PNG/JSON из FlowForge и т.п.) */
+  A.push = function (m, opts) {
+    push(m);
+    try {
+      if (opts && opts.panel) A.panel = opts.panel;
+      else A.panel = 'chat';
+      A.render(true);
+    } catch (e) { console.error('A.push render', e); }
+  };
+  A.exportChat = function () {
+    const lines = (A.msgs || []).map(m => {
+      const t = new Date(m.at || Date.now()).toISOString();
+      const role = m.role === 'user' ? 'USER' : 'BOT';
+      return '[' + t + '] ' + role + ': ' + String(m.text || '').replace(/\n/g, ' ');
+    });
+    const payload = {
+      app: 'Contour',
+      version: (window.APP_VERSION || (O.core && O.core().version) || ''),
+      exportedAt: new Date().toISOString(),
+      count: (A.msgs || []).length,
+      messages: (A.msgs || []).map(m => ({ role: m.role, text: m.text, at: m.at, intent: m.intent }))
+    };
+    return { text: lines.join('\n'), json: JSON.stringify(payload, null, 2), payload };
+  };
   A.send = async function (text) {
     text = String(text || '').trim(); if (!text || busy) return; busy = true;
     try { await A._sendInner(text); } catch (e) { console.error('agent', e); } finally { busy = false; }
@@ -1537,6 +1599,33 @@
     else if (a === 'unalias') { const k = decodeURIComponent(x || ''); delete mem.aliases[k]; saveMem(); push(R('Убрал привязку «' + k + '».', { buttons: [btn('Мои команды', 'cmd:мои команды')] })); }
     else if (a === 'pick') { const p = S().people.find(v => v.id === x); if (p) { if (pending.pickKey) { mem.aliases[pending.pickKey] = p.id; saveMem(); } push(R(y === 'sms' ? `Сообщение для ${p.name}.` : `Нажмите, чтобы позвонить: ${p.name}.`, { cards: [personCard(p, '')] })); } }
     else if (a === 'done') { const h = S().homework.find(v => v.id === x); if (h) { h.done = true; C().save(); C().render(); undoStack.push(() => { h.done = false; }); push(R(`Отметил: ${h.title}.`, { buttons: [btn('Отменить', 'ag:undo')] })); } }
+    else if (a === 'share-text' || a === 'share-png') {
+      (async () => {
+        try {
+          if (a === 'share-png' && O._lastSchemePng && O._lastSchemePng.dataUrl) {
+            const res = await fetch(O._lastSchemePng.dataUrl);
+            const blob = await res.blob();
+            const file = new File([blob], (O._lastSchemePng.name || 'scheme') + '.png', { type: 'image/png' });
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: O._lastSchemePng.name || 'Схема', text: 'Схема из Контура' });
+              return;
+            }
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a'); link.href = url; link.download = file.name; link.click();
+            URL.revokeObjectURL(url);
+            if (C() && C().toast) C().toast('PNG сохранён — отправьте из галереи');
+            return;
+          }
+          const url = (location.href || '').split('#')[0];
+          if (navigator.share) await navigator.share({ title: (O.brand && O.brand().name) || 'Контур', text: url, url: url });
+          else { await navigator.clipboard.writeText(url); if (C() && C().toast) C().toast('Ссылка скопирована'); }
+        } catch (e) {
+          if (e && e.name === 'AbortError') return;
+          if (C() && C().toast) C().toast('Не удалось поделиться');
+        }
+      })();
+      return;
+    }
     else if (a === 'forget') { mem = { aliases: {}, notes: [], msgs: [], facts: [] }; A.msgs = []; O.habits.clear(); C().clearAgentMemory && C().clearAgentMemory(); saveMem(); push(R('Память очищена.')); }
     else if (a === 'wiz') {
       // act = ag:wiz:OP:ARG  →  a=wiz, x=OP, y=ARG
@@ -1637,39 +1726,42 @@
   A.chips = function () {
     const now = new Date(), nm = E.nowMin(now), ev = E.eventsOn(S(), now).list, out = [], seen = new Set();
     const st = S().settings || {};
-    const max = st.agentChipCats ? 14 : 8;
+    const catsOn = !!st.agentChipCats;
+    const max = catsOn ? 20 : 5;
     const add = (l, c) => { const k = l.toLowerCase(); if (!seen.has(k) && out.length < max) { seen.add(k); out.push(btn(l, 'cmd:' + c)); } };
-    if (st.agentSuggest !== false && O.habits) try { O.habits.top(now, { prefix: 'cmd:', limit: 3 }).forEach(m => add(m.label, m.label)); } catch (e) {}
+    // Базовый набор (всегда, мало кнопок)
     if (ev.length && nm < ev[0].s) add('Когда выходить', 'когда выходить на работу');
-    else if (ev.length && nm >= Math.max(...ev.map(e => e.e)) - 40) { add('Я освободился', 'я освободился'); add('Автобус домой', 'когда автобус домой'); }
+    else if (ev.length && nm >= Math.max(...ev.map(e => e.e)) - 40) add('Я освободился', 'я освободился');
     else add('Что дальше', 'что дальше');
-    if (nm >= 17 * 60) add('Что взять завтра', 'что взять завтра');
-    if (S().people.some(p => p.phone)) { const f = favPerson(); add(f ? 'Позвонить ' + firstName(f) : 'Позвонить', f ? 'позвони ' + f.name : 'позвони'); }
     add('Задачи', 'что задано');
+    if (S().people.some(p => p.phone)) { const f = favPerson(); add(f ? 'Позвонить ' + firstName(f) : 'Позвонить', f ? 'позвони ' + f.name : 'позвони'); }
+    add('Помощь', 'помощь');
+    if (!catsOn) return out;
+    // Категории включены — расширенный набор
+    if (st.agentSuggest !== false && O.habits) try { O.habits.top(now, { prefix: 'cmd:', limit: 2 }).forEach(m => add(m.label, m.label)); } catch (e) {}
     add('Цели', 'цели');
     add('Напомни', 'напомни');
     add('Помидор', 'помидор');
-    add('Помощь', 'помощь');
-    if (st.agentChipCats) {
-      // категории быстрых действий (вкл. в настройках)
-      add('Расписание', 'расписание на сегодня');
-      add('Завтра', 'расписание на завтра');
-      add('Напоминания', 'напоминания');
-      add('Калькулятор', 'калькулятор');
-      add('Схемы', 'где схема');
-      add('Оформление', 'оформление');
-      add('Память', 'что было вчера');
-      add('Концентрация', 'концентрация');
-    }
-    try {
-      if (O.actions && O.actions.SKILLS) {
-        O.actions.SKILLS.slice(0, st.agentChipCats ? 6 : 4).forEach(sk => {
-          const ex = (sk.examples && sk.examples[0]) || sk.label;
-          add(sk.label, ex);
-        });
-      }
-    } catch (e) {}
+    add('QR приложения', 'qr приложения');
+    add('Расписание', 'расписание на сегодня');
+    add('Завтра', 'расписание на завтра');
+    add('Напоминания', 'напоминания');
+    add('Калькулятор', 'калькулятор');
+    add('Схемы', 'где схема');
+    add('Память', 'что было вчера');
+    add('Концентрация', 'концентрация');
+    add('Оформление', 'оформление');
     return out;
+  };
+  /** HTML ряда кнопок: при категориях — с подписью «расширенный набор» */
+  A.chipsHtml = function () {
+    const st = S().settings || {};
+    const list = A.chips();
+    const chips = list.map(x => `<button class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join('');
+    if (!st.agentChipCats) {
+      return chips + `<button type="button" class="o-chip o-chip-muted" data-ag="cmd:настройки агента" title="Включить категории">+ ещё</button>`;
+    }
+    return `<div class="o-chips-cat-label">Категории включены</div>` + chips;
   };
 
   function renderAgentPanel() {
@@ -1816,7 +1908,7 @@
         if (!a || !root.contains(a)) return;
         e.preventDefault(); e.stopPropagation();
         const act = a.dataset.ag;
-        if (act.startsWith('ag:')) agAct(act);
+        if (act.startsWith('ag:')) { agAct(act); try { A.render(true); } catch (err) {} }
         else if (act.startsWith('cmd:')) { A.panel = 'chat'; try { renderLiveChips([]); } catch (err) {} A.send(act.slice(4)); }
         else if (O.dispatch) O.dispatch(act);
       });
@@ -1838,7 +1930,7 @@
     }).join('') + (busy ? '<div class="o-m bot typing"><i></i><i></i><i></i></div>' : '');
     const chips = $('ag-chips');
     if (chips) {
-      try { chips.innerHTML = A.chips().map(x => `<button class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join(''); }
+      try { chips.innerHTML = A.chipsHtml ? A.chipsHtml() : A.chips().map(x => `<button class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join(''); }
       catch (err) { chips.innerHTML = ''; }
     }
     if (scroll !== false) ms.scrollTop = ms.scrollHeight;
