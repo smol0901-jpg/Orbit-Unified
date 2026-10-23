@@ -879,3 +879,16 @@ body.embed-tab #tab-diagrams.active {
 }
 #ag-dock.o-dock-inchat.min iframe,
 #ag-dock.o-dock-inchat.min .o-dock-b{display:none!important}
+
+/* 5.8.34 docks between msgs and chips */
+#ag-dock.o-dock-inchat,#ag-flow-dock.o-dock-inchat{
+  position:relative;z-index:5;margin:8px 12px;flex:none;
+}
+#ag-dock .o-dock-h .o-ib,#ag-flow-dock .o-dock-h .o-ib{
+  min-width:40px;min-height:40px;display:grid;place-items:center;cursor:pointer;
+  pointer-events:auto;z-index:6;
+}
+#tab-calc .embed-wrap,#tab-calc iframe#cifra-frame{
+  display:flex;justify-content:center;
+}
+#tab-calc iframe#cifra-frame{max-width:460px;margin:0 auto}

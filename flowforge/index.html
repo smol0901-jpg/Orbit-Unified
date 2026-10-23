@@ -180,6 +180,7 @@
       if (p && p.d && typeof setDoc === 'function') {
         setDoc(p.d);
         if (typeof reveal === 'function') reveal();
+        if (typeof fit === 'function') setTimeout(fit, 100);
         if (typeof toast === 'function') toast('✅ Схема из Контура: '+(p.n||''));
         localStorage.removeItem('ffOrbitLoad');
       }
@@ -192,9 +193,17 @@
       if (d.doc && typeof setDoc === 'function') {
         setDoc(d.doc);
         if (typeof reveal === 'function') reveal();
+        if (typeof fit === 'function') setTimeout(fit, 80);
         if (typeof toast === 'function') toast('✅ Схема из агента Контура');
       }
     } catch(e){ console.warn(e); }
+  });
+  window.addEventListener('message', function(ev){
+    var d = ev.data;
+    if (!d) return;
+    if (d.type === 'orbit-fit' || d.t === 'orbit-fit') {
+      try { if (typeof fit === 'function') fit(); } catch(e){}
+    }
   });
   if (document.readyState === 'complete') setTimeout(loadOrbit, 400);
   else window.addEventListener('load', function(){ setTimeout(loadOrbit, 400); });

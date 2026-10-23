@@ -149,7 +149,14 @@ function legend(){
   if(doc.type==='bar') return (doc.bars||[]).map((s,i)=>`<div class="leg"><i style="background:${COLORS[i%COLORS.length]}"></i>${esc(s.label)} · ${s.value}</div>`).join('');
   return '';
 }
+function ensureLabels(){
+  if(!doc) return;
+  if(doc.slices) doc.slices.forEach(function(s,i){ if(!s.label) s.label='Доля '+(i+1); });
+  if(doc.bars) doc.bars.forEach(function(s,i){ if(!s.label) s.label='C'+(i+1); });
+  if(doc.blocks) doc.blocks.forEach(function(s,i){ if(!s.label) s.label='Блок '+(i+1); });
+}
 function paint(){
+  ensureLabels();
   document.getElementById('preview').innerHTML=renderSvg()+'<div class="legend">'+legend()+'</div>';
   try{ localStorage.setItem('contour-diagrams-current', JSON.stringify(doc)); }catch(e){}
 }
@@ -241,7 +248,10 @@ document.getElementById('btn-dash').onclick=e=>{
   else if(t==='bar') Object.assign(doc, defaultDoc('bar'), {title:'Неделя · дашборд'});
   editorUI(); paint();
 };
-document.getElementById('btn-agent').onclick=e=>{ e.preventDefault(); postToParent('json'); e.target.textContent='✓'; setTimeout(()=>e.target.textContent='В агент',1000); };
+function flashBtn(el, ok, back){ try{ el.textContent=ok; setTimeout(function(){ el.textContent=back; }, 1200);}catch(x){} }
+function onAgentSend(e){ e.preventDefault(); e.stopPropagation(); postToParent('json'); flashBtn(e.currentTarget||e.target,'✓','В агент'); }
+document.getElementById('btn-agent').onclick=onAgentSend;
+document.getElementById('btn-agent').ontouchend=function(e){ e.preventDefault(); onAgentSend(e); };
 document.getElementById('btn-png').onclick=async e=>{
   e.preventDefault();
   try{

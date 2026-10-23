@@ -57,6 +57,16 @@
 
 
 
+
+## 5.8.34 — ТЗ: calc/схемы/диаграммы (2026-10-23)
+
+- Calc-dock вне #ag-msgs (render не убивает iframe); ✕/▾ с capture; default tab calc.
+- Диаграммы: bridge dg-to-agent / dashboard; кнопки В агент / PNG.
+- FlowForge: fit после загрузки и при открытии вкладки.
+- CIFRA desktop max-width 460px.
+
+---
+
 ## 5.8.33 — живая карточка CIFRA 420px (2026-10-23)
 
 - Iframe фиксирован 420px (380 на узких, 440 на desktop).

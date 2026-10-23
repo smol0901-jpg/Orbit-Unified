@@ -466,3 +466,8 @@ body {
   overflow-x: hidden;
   touch-action: manipulation;
 }
+
+/* cifra-desktop-cap: не растягивать на весь wide desktop */
+@media(min-width:700px){
+html:not(.cifra-embed) .app{max-width:460px;margin:0 auto}
+}
