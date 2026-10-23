@@ -250,3 +250,17 @@ dialog.sheet.wide{width:min(720px,100vw)}
 #agBtn.on{background:#89b4fa33}
 @media(max-width:700px){#agp{top:100px}}
 body.vw #agp{display:none!important}
+
+/* 5.8.35: embed + PC / tablet / phone adaptation */
+html,body{width:100%;max-width:100%}
+@media (max-width:480px){
+  body{grid-template:"top" auto "stage" 1fr / 1fr;padding:0}
+  #pal{position:fixed;left:0;right:0;bottom:0;z-index:20;flex-direction:row;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;width:100%;height:auto;max-height:72px;border-right:0;border-top:1px solid var(--l);padding:4px 6px;gap:4px}
+  #pal button{width:56px;min-width:56px;font-size:10px;padding:4px 2px}
+  #stage{padding-bottom:76px}
+  #top{padding:4px 6px}
+}
+@media (min-width:481px) and (max-width:900px){
+  #pal button{width:62px;font-size:10px}
+}
+html:not(:root) body, body{min-height:100%;min-height:100dvh}

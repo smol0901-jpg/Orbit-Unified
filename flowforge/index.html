@@ -11,7 +11,15 @@
 <script defer src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script defer src="js/app.js?v=2.9"></script>
 <script defer src="js/agent.js?v=1.1"></script>
-<script type="module" src="agent/index.js?v=1.1.0"></script></head><body>
+<script type="module" src="agent/index.js?v=1.1.0"></script><script>
+(function(){
+  if (window.parent !== window || /[?&]embed=1(?:&|$)/.test(location.search)) {
+    document.documentElement.classList.add('ff-embed');
+    document.body && document.body.classList.add('ff-embed');
+  }
+})();
+</script>
+</head><body>
 <div id="splash" role="presentation"><div class="sp-in"><img src="icons/logo.webp" alt="Neural Architect Premium++" width="681" height="378"><div class="sp-t">FlowForge Studio</div><div class="sp-s">Профессиональный конструктор блок-схем</div><div class="sp-bar"><i></i></div><small>Нажмите, чтобы пропустить</small></div></div>
 <script>(function(){var s=document.getElementById('splash');try{if(JSON.parse(localStorage.ffCfg).splash===false){s.remove();return}}catch(e){}var d=function(){s.classList.add('out');setTimeout(function(){s.remove()},500)};setTimeout(d,3000);s.onclick=d})()</script>
 <header id="top"><b class="logo">⚡ FlowForge</b><span class="pnl" id="pnl" data-a="menu" title="Название схемы"></span>

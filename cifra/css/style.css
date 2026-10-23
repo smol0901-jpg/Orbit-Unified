@@ -471,3 +471,24 @@ body {
 @media(min-width:700px){
 html:not(.cifra-embed) .app{max-width:460px;margin:0 auto}
 }
+
+/* 5.8.35 responsive: PC / tablet / phone / embed */
+html.cifra-embed .shell,
+html.cifra-embed .app{max-width:100%!important;width:100%!important}
+@media (max-height:640px){
+  :root{--cap:52px;--u:calc((100dvh - 300px)/5)}
+  .screen{min-height:56px;padding:6px 10px}
+  #res{font-size:clamp(1.4rem,6vh,2.2rem)}
+}
+@media (max-height:520px){
+  :root{--cap:44px;--ks:.92}
+  .nav button{padding:4px 2px;font-size:.58rem}
+  .chips{padding:2px 0 6px}
+}
+@media (min-width:700px) and (min-height:700px){
+  :root{--cap:68px}
+  html:not(.cifra-embed) .app{max-width:480px}
+}
+.pad{width:100%;max-width:100%;grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.pad button{min-width:0}
+.chips{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
