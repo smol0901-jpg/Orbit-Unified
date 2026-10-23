@@ -1,6 +1,6 @@
 {
-  "version": "5.8.37",
+  "version": "5.8.39",
   "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.37: CIFRA tabs — only active view visible (embed CSS no longer overrides [hidden]); card max-width 460px"
+  "notes": "5.8.39: CIFRA mode bar Обычный/Математический, display + pad proportions"
 }
