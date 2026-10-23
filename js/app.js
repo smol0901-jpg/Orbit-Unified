@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'orbit-planner-v3';
   const BACKUP_KEY = 'orbit-planner-backup-v3';
-  const APP_VERSION = '5.8.33';
+  const APP_VERSION = '5.8.34';
   const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   const DAYS_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
   const SUBJECTS = [
@@ -226,6 +226,11 @@
             var h = Math.max(320, window.innerHeight - 120);
             wrap.style.height = h + 'px';
             fr.style.height = h + 'px';
+          }
+          if (tab === 'flow') {
+            setTimeout(function () {
+              try { fr.contentWindow.postMessage({ type: 'orbit-fit' }, '*'); } catch (e) {}
+            }, 300);
           }
         });
       }

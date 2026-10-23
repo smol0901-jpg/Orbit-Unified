@@ -35,15 +35,21 @@
       <button type="button" class="o-ib" data-dact="min" aria-label="Свернуть">▾</button><button type="button" class="o-ib" data-dact="close" aria-label="Закрыть">✕</button></div>
       <div class="o-dock-tabs" id="ag-dock-tabs"></div>
       <div class="o-dock-b"></div>`;
-    // Внутри ленты сообщений — не под composer
+    // Между лентой и чипами — render() не уничтожает iframe
     const msgs = host.querySelector('#ag-msgs') || host.querySelector('.o-msgs');
-    if (msgs) msgs.appendChild(d);
-    else host.appendChild(d);
+    const chips = host.querySelector('#ag-chips') || host.querySelector('.o-chips-row');
+    if (msgs && msgs.parentNode) {
+      if (chips && chips.parentNode === msgs.parentNode) msgs.parentNode.insertBefore(d, chips);
+      else msgs.parentNode.insertBefore(d, msgs.nextSibling);
+    } else host.appendChild(d);
     d.addEventListener('click', e => {
+      e.stopPropagation();
       const t = e.target.closest('[data-dtab]'); if (t) { I.openCalc({ tab: t.dataset.dtab }); return; }
       const a = e.target.closest('[data-dact]'); if (!a) return;
-      if (a.dataset.dact === 'close') I.closeCalc(); else { dock.min = !dock.min; syncDock(); }
-    });
+      e.preventDefault();
+      if (a.dataset.dact === 'close') I.closeCalc();
+      else { dock.min = !dock.min; syncDock(); }
+    }, true);
     return d;
   }
   function frameEl() {
@@ -82,24 +88,36 @@
     o = o || {};
     if (O.actions && O.actions.go && (!window.OrbitCore || OrbitCore.tab !== 'agent')) O.actions.go('agent');
     if (O.assistant.panel && O.assistant.panel !== 'chat') { O.assistant.panel = 'chat'; O.assistant.render(false); }
+    try { if (I.closeFlow) I.closeFlow(); } catch (e) {}
     const d = dockEl(); const f = frameEl();
-    dock.open = true; dock.min = false; if (o.tab) dock.tab = o.tab;
-    // держим панель в конце ленты, не под composer
+    dock.open = true; dock.min = false;
+    dock.tab = o.tab || 'calc';
+    // позиция: между msgs и chips (не внутри msgs)
     try {
+      const host = document.querySelector('#agent-root .o-agent') || document.getElementById('agent-root');
       const msgs = document.getElementById('ag-msgs');
-      if (msgs && d && d.parentNode !== msgs) msgs.appendChild(d);
-      else if (msgs && d) msgs.appendChild(d);
+      const chips = document.getElementById('ag-chips');
+      if (d && msgs && msgs.parentNode) {
+        if (chips && chips.parentNode === msgs.parentNode) msgs.parentNode.insertBefore(d, chips);
+        else if (d.parentNode !== msgs.parentNode) msgs.parentNode.insertBefore(d, msgs.nextSibling);
+      }
     } catch (e) {}
     syncDock();
     if (f) {
-      if (o.tab) post({ type: 'orbit-calc', tab: o.tab });
+      post({ type: 'orbit-calc', tab: dock.tab });
       if (o.expr) post({ type: 'orbit-calc', expr: o.expr, tab: 'calc' });
-      // подсказать embed-раскладку
       try { f.contentWindow && f.contentWindow.document && f.contentWindow.document.documentElement.classList.add('cifra-embed'); } catch (e) {}
     }
     setTimeout(() => { try { d && d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {} }, 80);
   };
-  I.closeCalc = function () { dock.open = false; syncDock(); };
+  I.closeCalc = function () {
+    dock.open = false; dock.min = false;
+    try {
+      const d = $('ag-dock');
+      if (d) { d.hidden = true; d.classList.add('min'); }
+    } catch (e) {}
+    syncDock();
+  };
 
   /* ═══════════ FlowForge в контейнере чата ═══════════ */
   const flowDock = I.flowDock = { open: false, min: false };

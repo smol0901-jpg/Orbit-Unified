@@ -231,7 +231,18 @@
     const [a, ...r] = String(act).split(':'), core = C(), s = S();
     O.vibrate(8);
     switch (a) {
-      case 'tab': core.switchTab(r[0]); window.scrollTo({ top: 0 }); break;
+      case 'tab': {
+        const t = r[0];
+        try {
+          if (t !== 'agent' && O.inline) {
+            if (O.inline.closeCalc) O.inline.closeCalc();
+            if (O.inline.closeFlow) O.inline.closeFlow();
+          }
+        } catch (e) {}
+        core.switchTab(t);
+        window.scrollTo({ top: 0 });
+        break;
+      }
       case 'cmd': O.assistant.ask(r.join(':')); break;
       case 'free': if (r[0] === 'reset') O.ui.free = null; else { const m = +r[0] || 0, now = new Date(); O.ui.free = { freeAt: E.nowMin(now) + m, at: Date.now() }; O.habits.rec('cmd:я освободился', 'Я освободился'); } O.renderDash(); break;
       case 'hw': if (r[0] === 'toggle') { const h = s.homework.find(x => x.id === r[1]); if (h) { h.done = !h.done; core.save(); core.render(); } } else core.openHwModal(null); break;

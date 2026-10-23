@@ -1,6 +1,6 @@
 {
-  "version": "5.8.33",
+  "version": "5.8.34",
   "build": 20261021,
   "name": "Контур",
-  "notes": "5.8.33: CIFRA card fixed 420px, embed scales pad to fit fully"
+  "notes": "5.8.34: TZ full fix calc close/card, diagrams→agent, flow fit, desktop calc width"
 }

@@ -424,4 +424,54 @@
       return r.html;
     }
   };
+
+  /* Bridge: кнопки редактора → агент / дашборд */
+  if (!window.__contourDgBridge) {
+    window.__contourDgBridge = true;
+    window.addEventListener('message', function (ev) {
+      const d = ev.data;
+      if (!d || !d.t) return;
+      const O = window.Orbit || {};
+      try {
+        if (d.t === 'dg-to-agent') {
+          try { if (O.inline && O.inline.closeCalc) O.inline.closeCalc(); } catch (e) {}
+          if (O.actions && O.actions.go) O.actions.go('agent');
+          else if (window.OrbitCore && OrbitCore.switchTab) OrbitCore.switchTab('agent');
+          let card = '';
+          if (d.kind === 'png' && d.dataUrl) {
+            card = '<div class="o-glass-card" style="padding:8px"><img src="' + String(d.dataUrl).replace(/"/g, '') + '" alt="Диаграмма" style="max-width:100%;border-radius:12px;display:block"/></div>';
+          } else if (d.doc && O.diagrams && O.diagrams.cardFor) {
+            O._lastDiagram = d.doc;
+            card = O.diagrams.cardFor(d.doc);
+          } else if (d.doc) {
+            card = '<div class="o-glass-card"><pre style="white-space:pre-wrap;font-size:.75rem;margin:0">' + JSON.stringify(d.doc, null, 2).replace(/</g, '&lt;') + '</pre></div>';
+          }
+          const A = O.assistant;
+          if (A && typeof A.R === 'function') {
+            const msg = A.R('Диаграмма «' + (d.name || 'без названия') + '»', {
+              cards: card ? [card] : [],
+              buttons: [
+                A.btn ? A.btn('Редактор', 'tab:diagrams') : { label: 'Редактор', act: 'tab:diagrams' },
+                A.btn ? A.btn('Ещё', 'cmd:диаграммы') : { label: 'Ещё', act: 'cmd:диаграммы' }
+              ]
+            });
+            if (typeof A.push === 'function') A.push(msg);
+            else if (A.msgs) { A.msgs.push(msg); }
+            try { A.render(true); } catch (e) {}
+          }
+          return;
+        }
+        if (d.t === 'dg-request-dashboard') {
+          const type = d.type || 'busy';
+          let doc = null;
+          if (O.diagrams && O.diagrams.fromDashboard) doc = O.diagrams.fromDashboard(type, {});
+          const fr = document.getElementById('diagrams-frame');
+          if (fr && fr.contentWindow && doc) {
+            fr.contentWindow.postMessage({ t: 'dg-dashboard-data', doc: doc }, '*');
+          }
+        }
+      } catch (err) { console.warn('dg bridge', err); }
+    });
+  }
+
 })();
