@@ -95,12 +95,32 @@ html.cifra-embed #calc.view:not([hidden]){
   html.cifra-embed #res{font-size:1.25rem!important}
   html.cifra-embed nav.nav button{font-size:.52rem!important;padding:3px 4px!important}
 }
-html.cifra-embed #sciPad.pad{flex:0 0 auto!important;max-height:28%!important;overflow:auto!important}
+html.cifra-embed #sciPad.pad{
+  flex:0 0 auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:5px!important;
+}
+html.cifra-embed #sciPad.pad button{
+  height:auto!important;
+  min-height:34px!important;
+  font-size:clamp(.68rem,1.8vh,.82rem)!important;
+  padding:4px 2px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
 html.cifra-embed .pad button{
   height:auto!important;min-height:0!important;
-  font-size:clamp(.85rem,2.8vh,1.25rem)!important;
+  font-size:clamp(.95rem,2.8vh,1.25rem)!important;
   border-radius:10px!important;
   box-shadow:none!important;
+  white-space:nowrap!important;
+}
+html.cifra-embed .pad.mem button{
+  font-size:clamp(.65rem,1.6vh,.8rem)!important;
+  min-height:30px!important;
 }
 html.cifra-embed .pad .op{font-size:clamp(1rem,3vh,1.4rem)!important}
 html.cifra-embed .pad .eq{font-size:clamp(1.1rem,3.2vh,1.5rem)!important}

@@ -15,7 +15,7 @@ const show=s=>cfg.dsep===','?s.replace(/\./g,','):s;
 const OPS='+−×÷^',FN=/(a?sin\(|a?cos\(|a?tan\(|ln\(|log\(|√\(|abs\(|.)$/;
 const MAIN=[['AC','c','fn'],['⌫','bs','fn'],['(','(','fn'],[')',')','fn'],['7'],['8'],['9'],['÷','÷','op'],['4'],['5'],['6'],['×','×','op'],['1'],['2'],['3'],['−','−','op'],['0'],[',','.'],['+','+','op'],['=','=','eq']];
 const SCI=[['sin','sin('],['cos','cos('],['tan','tan('],['π','π'],['ln','ln('],['log','log('],['√','√('],['e','e'],['x²','^2'],['xʸ','^'],['(','('],[')',')'],['n!','!'],['1/x','1÷('],['abs','abs('],['10ˣ','10^('],['RAD','deg'],['sin⁻¹','asin('],['cos⁻¹','acos('],['tan⁻¹','atan('],['x','x'],['τ','τ'],['exp','exp('],['∛','cbrt('],['sec','sec('],['csc','csc('],['cot','cot('],['nCr','ncr('],['nPr','npr(']];
-const MEM=[['MC'],['MR'],['M+'],['M−'],['MS'],['ƒx','sci']];
+const MEM=[['MC'],['MR'],['M+'],['M−'],['MS'],['ƒx','sci']]; /* ƒx = переключение Обычный ↔ Математический */
 const SET=[['Оформление',[['theme','Тема','seg',[['auto','Авто'],['light','День'],['dark','Ночь'],['amoled','AMOLED']]],['accent','Цвет акцента','col',['#7c5cff','#22d3ee','#0e9f6e','#e0662b','#c026d3','#e11d48','#0f7fd0']],['bg','Фон','seg',[['nova','CIFRA'],['none','Нет'],['aurora','Аврора'],['dusk','Закат'],['forest','Лес'],['mono','Графит']]]]],
 ['Отклик',[['hap','Вибрация','seg',[[0,'Выкл'],[1,'Лёгкая'],[2,'Средняя'],[3,'Сильная']]],['sound','Звук нажатий','seg',[[0,'Выкл'],[.05,'Тихий'],[.14,'Громкий']]],['anim','Анимации','sw',['off','on']]]],
 ['Клавиатура',[['size','Размер кнопок','seg',[[.88,'Компактные'],[1,'Обычные'],[1.15,'Крупные']]],['shape','Форма кнопок','seg',[['round','Мягкие'],['pill','Овал'],['square','Строгие']]]]],
@@ -30,7 +30,16 @@ function apply(){const r=document.documentElement,s=r.style;
   r.dataset.theme=cfg.theme==='auto'?(mq.matches?'dark':'light'):cfg.theme;r.dataset.bg=cfg.bg;r.dataset.anim=cfg.anim;r.classList.toggle('sm',!!cfg.sci);
   s.setProperty('--eq',cfg.accent);s.setProperty('--ks',cfg.size);s.setProperty('--kr',{round:'20px',pill:'999px',square:'8px'}[cfg.shape]||'20px');
   $('meta[name=theme-color]').content=getComputedStyle(r).getPropertyValue('--card').trim()||'#12151b';
-  $('#sciPad [data-k=deg]').textContent=cfg.deg?'DEG':'RAD';$('#memp [data-k=sci]').setAttribute('aria-pressed',!!cfg.sci);$('#sciPad').hidden=!cfg.sci;$('#hap').hidden=!HM;$('#hap').classList.toggle('off',!cfg.hap);mark(1);
+  $('#sciPad [data-k=deg]').textContent=cfg.deg?'DEG':'RAD';
+  const sciBtn=$('#memp [data-k=sci]');
+  if(sciBtn){
+    sciBtn.setAttribute('aria-pressed',!!cfg.sci);
+    sciBtn.setAttribute('title',cfg.sci?'Математический режим (нажмите для обычного)':'Обычный режим (нажмите для математического)');
+    sciBtn.setAttribute('aria-label',sciBtn.getAttribute('title'));
+    sciBtn.textContent=cfg.sci?'SCI':'ƒx';
+  }
+  $('#sciPad').hidden=!cfg.sci;
+  $('#hap').hidden=!HM;$('#hap').classList.toggle('off',!cfg.hap);mark(1);
   $('#pad [data-k="."]').textContent=cfg.dsep;wake()}
 mq.onchange=apply;
 async function wake(){try{if(cfg.awake==='on'&&navigator.wakeLock&&!wl){wl=await navigator.wakeLock.request('screen');wl.onrelease=()=>wl=null}
@@ -78,7 +87,7 @@ function press(k){
   if(k==='c'){expr='';done=false;return render()}
   if(k==='bs'){if(done){expr='';done=false}else expr=expr.replace(FN,'');return render()}
   if(k==='=')return equals();
-  if(k==='sci'){cfg.sci=!cfg.sci;save();return apply()}
+  if(k==='sci'){cfg.sci=!cfg.sci;save();apply();toast(cfg.sci?'Математический режим':'Обычный режим');return}
   if(k==='deg'){cfg.deg=!cfg.deg;save();apply();return render()}
   if(/^M[CR+−S]$/.test(k))return memory(k);
   if(k==='1÷('){const l=expr.slice(-1);expr=expr&&!/[+−×÷^(]/.test(l)?'1÷('+expr+')':expr+k;done=false;return render()}
