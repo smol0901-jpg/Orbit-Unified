@@ -1,6 +1,6 @@
 {
-  "version": "5.8.40",
+  "version": "5.8.41",
   "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.40: basic pad everyday ops only; sci hidden in basic; agent dock basic-only"
+  "notes": "5.8.41: agent compact basic-only calc; equal bottom row keys; hide mode bar in agent"
 }

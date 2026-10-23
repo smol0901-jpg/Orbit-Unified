@@ -1,134 +1,125 @@
-## 5.8.40 — обычный vs математический по смыслу
-**Исправлено.**
-- **Обычный:** только цифры, + − × ÷, %, √, x², ( ), AC/⌫ — без sin/cos/ln.
-- **Математический:** sci-панель (тригонометрия, log, nCr…).
-- Sci-панель жёстко скрыта в обычном режиме.
-- **Агент:** `?basic=1` — только обычный калькулятор, без переключателя режимов.
+#!/usr/bin/env python3
+"""Контур · запуск тестов в headless-Chromium.
 
-## 5.8.39 — пропорции + переключатель режимов
-**Исправлено.**
-- Циферблат компактный (не растягивается на весь экран).
-- Основная клавиатура забирает оставшуюся высоту — без скролла и обрезки.
-- Sci-панель: max-height ~28vh, скролл внутри при необходимости.
-- Явный переключатель **Обычный | Математический** над памятью (плюс ƒx/SCI).
+    pip install playwright && playwright install chromium
+    python3 tests/run.py            # все тесты
+    python3 tests/run.py --filter "Ассистент"
+    python3 tests/run.py --json out.json
 
-## 5.8.38 — режимы Обычный / Математический, читаемые кнопки
-**Исправлено / добавлено.**
-- Кнопка **ƒx / SCI**: обычный калькулятор ↔ математический (sin, cos, ln, …).
-- Toast при переключении; aria/title с названием режима.
-- Sci-кнопки: 4 колонки, min-height 36px, текст помещается (clamp + ellipsis).
-- Дневник багов: `docs/BUGFIX-LOG.md`.
+Что делает:
+  1. поднимает локальный сервер на корне проекта;
+  2. гоняет tests/index.html (браузерный набор) и собирает результат;
+  3. отдельно проверяет то, что из страницы не проверить: необработанные ошибки
+     по всем фреймам, офлайн-запуск через сервис-воркер, docx-шаблон без школьной лексики.
+Код возврата 0 — всё прошло, 1 — есть провалы.
+"""
+import argparse, asyncio, functools, http.server, json, os, re, socketserver, sys, threading, zipfile
 
-## 5.8.37 — CIFRA: одна вкладка за раз (как standalone)
-**Исправлено.**
-- Embed CSS ставил `display:flex!important` на все `.view` → Конвертер/Финансы/Даты/График/Доска/Учёт рисовались одновременно поверх «Счёт».
-- Теперь `.view[hidden]` / `.tool[hidden]` жёстко `display:none!important` в embed.
-- Карточка калькулятора во вкладке Контура: max-width 460px (как на cifra.github), по центру.
-
-## 5.8.36 — калькулятор: клавиатура + закрытие в чате
-**Исправлено.**
-- Док CIFRA в агенте: ✕ реально закрывает (hidden + display:none + unload iframe).
-- Кнопки min/close: z-index и hit-area 44px, pointer-events.
-- Убраны конфликтующие max-height:42vh на #ag-dock (клипали карточку).
-- Высота iframe в чате: min(52vh,420px), min-height 320px.
-- CIFRA embed: #pad min-height 180px, grid rows minmax(36px,1fr) — клавиши не схлопываются.
-- Версия 5.8.36.
-
-## 5.8.35 — UI адаптация калькулятора и схем (PC / планшет / телефон)
-**Исправлено.**
-- Высота iframe CIFRA / FlowForge: измеряется реальный header + bottom-nav (на PC rail — nav скрыт).
-- resize / ориентация: повторный fit + orbit-fit для схем.
-- CSS embed-tab: flex-fill на ≥720px, корректный calc на телефоне; diagrams включены.
-- CIFRA: keypad minmax(0,1fr), --cap на низкой высоте, chips без overflow.
-- FlowForge: на ≤480px палитра снизу горизонтально; embed class.
-- Версия 5.8.35 (version.json, APP_VERSION, SW cache).
-
-# Журнал изменений
-
-## 5.8.10 — схемы↔агент, концентрация, помидор, офлайн, автор
-Схемы в агент (JSON/PNG), настраиваемый помидор + звук + команды, режим концентрации (кнопка сверху), QR-share в агенте, офлайн-прогрузка, предупреждение о лимитах LLM, блок «Автор и продукты» в настройках. Детали — `docs/VERSION-HISTORY.md`.
-
-## 5.8.9 — канон версии + очередь тест-прогонов + VERSION-HISTORY
-**Версия.** Изначально линейка 5.8.x велась как **5.8.8**; в промежуточных сборках ошибочно стояли 5.8.5/5.8.6. Канон: **5.8.9**.  
-**Добавлено.** `docs/VERSION-HISTORY.md` — append-only журнал для агентов и разработчиков (инструкция, как вести файл; история не перезаписывается).  
-
-**Исправлено.**  
-- undo всегда отвечает («Нет изменений для отмены» / «Отменено»).  
-- «дней между A и B» / «дней до …» — fallback в assistant.  
-- Diary: без горизонтального overflow на 320–390 px.  
-- Заглушка «Облако»: короткий текст по спеке self-check.  
-- Сценарии ✎: всегда открывает FlowForge или локальный редактор.  
-- `addNote`: формат `{title, body, created}` — заметки агента видны в разделе «Заметки».  
-- Единая версия 5.8.9 во всех точках (`version.json`, `APP_VERSION`, `sw.js`).  
-
-Полная история и очередь — в `docs/VERSION-HISTORY.md`.
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+LEX = re.compile(r'школ|урок|ученик|учител|\bкласс(?:а|у|ом|е)?\b|домашн|домашк|\bдз\b|перемен[аыуе]\b|каникул|кружок|кружк|дневник|родител|орбит|продл[её]нк|лице[йяю]|гимнази|рюкзак|школьн', re.I)
 
 
-## 5.8.6 — P0 релиз-гигиена + агент/помидор
-**Исправлено (P0).**  
-- Единая версия 5.8.6: `version.json`, `APP_VERSION` в `js/app.js`, cache-name `contour-v5.8.6` в `sw.js`.  
-- Мастер нейросети: для LLM7 / free-провайдеров шаг «ключ» пропускается («Ключ не нужен»).  
-- Дедупликация блоков: повтор «добавь блок Фокус ср 15:00» не создаёт дубль.  
-
-**Исправлено (P1).**  
-- Карточка «День завершён»: счётчик «N встреч + M блоков».  
-- Кольцо Помидора: прогресс 0–1 (elapsed/total), а не 0–100.  
-- Calc-guard: телефоны и даты не считаются выражениями.  
-- whoFocus («Кому позвонить?»): имя берётся из **нового** сообщения целиком.  
-
-**Осталось на следующие спринты:** undo/dates timeouts, схема в редактор из чата, idle-таймер схемы, diary overflow, темизация CIFRA/FlowForge, карандаш сценариев, empty chip автобуса, quick-команды дубли.
+class Quiet(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, *a):
+        pass
 
 
-## 5.8.5 — тест-прогон iOS, стабильность и Помидор
-**Исправлено (P0/P1).**  
-- Viewport: `user-scalable=no` + `maximum-scale=1` (главный app, CIFRA) — предотвращает внезапный zoom-out.  
-- Калькулятор: overflow-x hidden, sticky nav режимов с safe-area, grid minmax(0,1fr).  
-- НДС donut: 2 сегмента (База / НДС), корректный центр.  
-- FlowForge: min fit-zoom 50%, timestamp экспорта в локальной TZ.  
-- Дашборд: раздельный счётчик «встречи + блоки».  
-**Добавлено.** Виджет «Помидор / Концентрация» на home (старт/пауза/сброс, счётчик циклов).  
+def serve(port):
+    handler = functools.partial(Quiet, directory=ROOT)
+    socketserver.TCPServer.allow_reuse_address = True
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', port), handler)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    return srv
 
 
-## 5.8.4 — CSP, LLM7 бесплатно, заглушки облака → ~10.0
-**Добавлено.** LLM7.io как бесплатный провайдер без ключа (`js/orbit/llm.js`). Content-Security-Policy в `index.html` (api.llm7.io и др.).  
-**Изменено.** Заглушки облака (CLOUD_SOON, панель «Облако») перенесены с «версия 5.8» на «ближе к 10.0 (в 5.x не успеваем)». Документы `CLOUD-STUBS.md` и `ROADMAP-5.8.md` обновлены.  
-**Исправлено.** Единообразие версий (version.json, APP_VERSION, кэш SW).
+def docx_text(path):
+    with zipfile.ZipFile(path) as z:
+        xml = z.read('word/document.xml').decode('utf-8', 'ignore')
+    return re.sub(r'<[^>]+>', ' ', xml)
 
-## 5.8.0–5.8.3 — подготовка облака и стабилизация
-Слой данных Dexie, LLM-контекст, Mermaid, сценарии. Облако законсервировано (CLOUD_READY = false).
 
-## 5.7.4 — Mermaid в чате
-Диаграммы Mermaid в ответах агента: блок ```mermaid … ``` рисуется SVG. CDN mermaid@11, кэш в SW. Модуль `js/orbit/mermaid.js` (без правок assistant.js).
+async def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--filter', default='')
+    ap.add_argument('--json', default='')
+    ap.add_argument('--port', type=int, default=8791)
+    a = ap.parse_args()
+    from playwright.async_api import async_playwright
 
-## 5.7.3 — LLM: контекст из данных Контура
-System-промпт: день, встречи, задачи, цели, маршруты. Секреты не передаются.
+    srv = serve(a.port)
+    base = f'http://127.0.0.1:{a.port}/'
+    extra = []   # (name, ok, detail)
+    page_errors = []
 
-## 5.7.2 — сценарии: Dexie + экспорт/импорт JSON
-Dual-write сценариев, кнопки экспорт/импорт JSON.
+    async with async_playwright() as p:
+        b = await p.chromium.launch()
 
-## 5.7.1 — слой данных Orbit.store (Dexie)
-schemaVersion, dual-write, автомиграция localStorage → IndexedDB.
+        # 1) основной набор (сервис-воркер блокируем: тесты не должны зависеть от кэша)
+        ctx = await b.new_context(viewport={'width': 1000, 'height': 900}, service_workers='block')
+        pg = await ctx.new_page()
+        pg.on('pageerror', lambda e: page_errors.append(str(e)))
+        url = base + 'tests/index.html?auto=1' + ('&filter=' + a.filter if a.filter else '')
+        await pg.goto(url)
+        try:
+            await pg.wait_for_function('window.__RESULTS && window.__RESULTS.done', timeout=600000)
+        except Exception:
+            print('Тесты не завершились за 10 минут'); sys.exit(2)
+        res = await pg.evaluate('window.__RESULTS.results')
+        await ctx.close()
 
-## 5.7.0 — «Память и хранилище» в настройках
+        # 2) офлайн: после установки сервис-воркера приложение открывается без сети
+        if not a.filter:
+            ctx = await b.new_context(viewport={'width': 390, 'height': 800})
+            pg2 = await ctx.new_page()
+            await pg2.add_init_script("localStorage.setItem('orbit-welcome-v4','1')")
+            await pg2.goto(base + 'index.html')
+            try:
+                await pg2.evaluate('navigator.serviceWorker.ready.then(()=>1)')
+                await pg2.wait_for_timeout(2500)   # дать дозаполнить кэш
+                await ctx.set_offline(True)
+                await pg2.reload()
+                await pg2.wait_for_function('window.OrbitReady === true', timeout=8000)
+                extra.append(('PWA', 'Офлайн: приложение запускается из кэша без сети', True, ''))
+                for t in ['schedule', 'agent', 'calc', 'flow']:
+                    await pg2.evaluate(f"OrbitCore.switchTab('{t}')")
+                    await pg2.wait_for_timeout(600)
+                fr = {t: pg2.frame_locator(f'#{t}-frame') for t in ['cifra', 'flow']}
+                n_cifra = await fr['cifra'].locator('body *').count()
+                n_flow = await fr['flow'].locator('body *').count()
+                extra.append(('PWA', 'Офлайн: калькулятор и схемы открываются из кэша', n_cifra > 5 and n_flow > 5, f'cifra={n_cifra}, flow={n_flow}'))
+            except Exception as e:
+                extra.append(('PWA', 'Офлайн: приложение запускается из кэша без сети', False, str(e)[:300]))
+            await ctx.close()
+        await b.close()
 
-## 5.6.0 — переменные, вопросы, петли и подсценарии
+    # 3) docx-шаблон
+    if not a.filter:
+        try:
+            t = docx_text(os.path.join(ROOT, 'templates', 'orbit-import-template.docx'))
+            m = LEX.search(t)
+            extra.append(('Ребрендинг', 'Word-шаблон импорта без школьной лексики', not m, ('…' + t[max(0, m.start() - 30):m.end() + 30] + '…') if m else ''))
+        except Exception as e:
+            extra.append(('Ребрендинг', 'Word-шаблон импорта читается', False, str(e)))
+        extra.append(('Запуск', 'Нет необработанных ошибок на странице тестов (все фреймы)', not page_errors, '; '.join(sorted(set(page_errors)))[:400]))
 
-## 5.5.2 — чат внизу, сценарий по названию
+    for g, n, ok_, d in extra:
+        res.append({'group': g, 'name': n, 'status': 'ok' if ok_ else 'fail', 'ms': 0, **({'error': d} if not ok_ else {})})
 
-## 5.5.1 — исправления сценариев
+    fails = [r for r in res if r['status'] == 'fail']
+    groups = {}
+    for r in res:
+        groups.setdefault(r['group'], []).append(r)
+    for g, rs in groups.items():
+        bad = [r for r in rs if r['status'] == 'fail']
+        print(f"\n{'✗' if bad else '✓'} {g}: {len(rs) - len(bad)}/{len(rs)}")
+        for r in bad:
+            print(f"   ✗ {r['name']}\n       {r.get('error', '')}")
+    print(f"\nИТОГО: пройдено {len(res) - len(fails)} из {len(res)}, провалено {len(fails)}")
+    if a.json:
+        with open(a.json, 'w', encoding='utf-8') as f:
+            json.dump(res, f, ensure_ascii=False, indent=1)
+    srv.shutdown()
+    sys.exit(1 if fails else 0)
 
-## 5.5.0 — режим «Сценарий агента» в FlowForge
 
-## 5.4.0 — сценарии-графы
-
-## 5.3.3 — Кон держит фокус между сообщениями
-
-## 5.3.2 — облако и БД законсервированы до 5.8 (позже → ~10.0)
-
-## 5.3.1 — порядок
-
-## 5.3.0 — голос в калькуляторе
-
-## 5.2.0 — калькулятор и схемы в чате
-
-## 5.1.0 — рабочее пространство
+asyncio.run(main())
