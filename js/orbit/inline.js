@@ -43,12 +43,20 @@
       else msgs.parentNode.insertBefore(d, msgs.nextSibling);
     } else host.appendChild(d);
     d.addEventListener('click', e => {
-      e.stopPropagation();
-      const t = e.target.closest('[data-dtab]'); if (t) { I.openCalc({ tab: t.dataset.dtab }); return; }
-      const a = e.target.closest('[data-dact]'); if (!a) return;
+      const t = e.target.closest('[data-dtab]');
+      if (t) { e.preventDefault(); e.stopPropagation(); I.openCalc({ tab: t.dataset.dtab }); return; }
+      const a = e.target.closest('[data-dact]');
+      if (!a) return;
       e.preventDefault();
-      if (a.dataset.dact === 'close') I.closeCalc();
-      else { dock.min = !dock.min; syncDock(); }
+      e.stopPropagation();
+      if (a.dataset.dact === 'close') {
+        I.closeCalc();
+        return;
+      }
+      if (a.dataset.dact === 'min') {
+        dock.min = !dock.min;
+        syncDock();
+      }
     }, true);
     return d;
   }
@@ -58,8 +66,13 @@
     if (!f) {
       f = document.createElement('iframe'); f.id = 'ag-calc-frame'; f.title = 'CIFRA Pro в чате';
       f.setAttribute('loading', 'eager'); f.allow = 'clipboard-read; clipboard-write; microphone';
-      f.setAttribute('height', '420'); f.style.height = '420px'; f.style.minHeight = '420px';
-      f.src = 'cifra/index.html?embed=1'; d.querySelector('.o-dock-b').appendChild(f);
+      // высота только через CSS (#ag-calc-frame) — без inline, чтобы не драться с !important
+      f.src = 'cifra/index.html?embed=1';
+      d.querySelector('.o-dock-b').appendChild(f);
+      f.addEventListener('load', function () {
+        try { f.contentWindow.document.documentElement.classList.add('cifra-embed'); } catch (e) {}
+        f.dataset.ready = '1';
+      }, { once: true });
     }
     return f;
   }
@@ -89,7 +102,9 @@
     if (O.actions && O.actions.go && (!window.OrbitCore || OrbitCore.tab !== 'agent')) O.actions.go('agent');
     if (O.assistant.panel && O.assistant.panel !== 'chat') { O.assistant.panel = 'chat'; O.assistant.render(false); }
     try { if (I.closeFlow) I.closeFlow(); } catch (e) {}
-    const d = dockEl(); const f = frameEl();
+    const d = dockEl();
+    if (d) { d.style.display = ''; d.removeAttribute('hidden'); d.classList.remove('min'); }
+    const f = frameEl();
     dock.open = true; dock.min = false;
     dock.tab = o.tab || 'calc';
     // позиция: между msgs и chips (не внутри msgs)
@@ -114,7 +129,18 @@
     dock.open = false; dock.min = false;
     try {
       const d = $('ag-dock');
-      if (d) { d.hidden = true; d.classList.add('min'); }
+      if (d) {
+        d.hidden = true;
+        d.classList.add('min');
+        d.setAttribute('hidden', '');
+        d.style.display = 'none';
+        // выгружаем iframe, чтобы не жрал память и не перехватывал клики
+        const f = d.querySelector('iframe');
+        if (f) {
+          try { f.src = 'about:blank'; } catch (e2) {}
+          f.remove();
+        }
+      }
     } catch (e) {}
     syncDock();
   };

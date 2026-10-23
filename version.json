@@ -1,6 +1,6 @@
 {
-  "version": "5.8.35",
+  "version": "5.8.36",
   "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.35: UI responsive fix — calc + FlowForge for PC/tablet/phone (embed height, rail, keypad, palette)"
+  "notes": "5.8.36: CIFRA keypad floor + agent dock close (remove iframe) + dock height CSS cleanup"
 }

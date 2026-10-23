@@ -1,3 +1,12 @@
+## 5.8.36 — калькулятор: клавиатура + закрытие в чате
+**Исправлено.**
+- Док CIFRA в агенте: ✕ реально закрывает (hidden + display:none + unload iframe).
+- Кнопки min/close: z-index и hit-area 44px, pointer-events.
+- Убраны конфликтующие max-height:42vh на #ag-dock (клипали карточку).
+- Высота iframe в чате: min(52vh,420px), min-height 320px.
+- CIFRA embed: #pad min-height 180px, grid rows minmax(36px,1fr) — клавиши не схлопываются.
+- Версия 5.8.36.
+
 ## 5.8.35 — UI адаптация калькулятора и схем (PC / планшет / телефон)
 **Исправлено.**
 - Высота iframe CIFRA / FlowForge: измеряется реальный header + bottom-nav (на PC rail — nav скрыт).
