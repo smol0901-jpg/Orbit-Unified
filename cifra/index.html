@@ -66,7 +66,20 @@ html.cifra-embed .pad.mem button{
   font-size:.72rem!important;
 }
 html.cifra-embed #pad.pad{
-  grid-template-rows:repeat(5,minmax(0,1fr))!important;
+  grid-template-rows:repeat(5,minmax(36px,1fr))!important;
+  flex:1 1 auto!important;
+  min-height:180px!important;
+}
+html.cifra-embed #calc.view{
+  flex:1 1 auto!important;
+  min-height:0!important;
+}
+/* на очень низком iframe (агент) — чуть компактнее */
+@media (max-height:420px){
+  html.cifra-embed #pad.pad{min-height:140px!important;grid-template-rows:repeat(5,minmax(28px,1fr))!important}
+  html.cifra-embed .screen{min-height:44px!important;max-height:56px!important}
+  html.cifra-embed #res{font-size:1.25rem!important}
+  html.cifra-embed nav.nav button{font-size:.52rem!important;padding:3px 4px!important}
 }
 html.cifra-embed #sciPad.pad{flex:0 0 auto!important;max-height:28%!important;overflow:auto!important}
 html.cifra-embed .pad button{

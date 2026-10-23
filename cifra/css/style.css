@@ -492,3 +492,10 @@ html.cifra-embed .app{max-width:100%!important;width:100%!important}
 .pad{width:100%;max-width:100%;grid-template-columns:repeat(4,minmax(0,1fr))!important}
 .pad button{min-width:0}
 .chips{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+
+/* 5.8.35 pad floor — клавиатура не схлопывается */
+#calc #pad.pad{
+  min-height:200px;
+  grid-template-rows:repeat(5,minmax(40px,1fr));
+}
+html.cifra-embed #calc #pad.pad{min-height:180px}
