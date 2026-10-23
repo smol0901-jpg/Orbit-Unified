@@ -76,6 +76,8 @@
     { id: 'agent', title: 'Агент', icon: 'sparkle', items: [
       { t: 'note', text: 'Под строкой ввода в чате агента — быстрые кнопки.\n• ВЫКЛ (по умолчанию): 4–5 кнопок по ситуации (Что дальше, Задачи, Помощь…).\n• ВКЛ: расширенный набор — Цели, Помидор, QR, Расписание, Калькулятор, Схемы, Память…\nОткройте вкладку Агент после переключения, чтобы увидеть разницу.' },
       { t: 'toggle', k: 'agentProactive', label: 'Проактивные карточки дня', hint: 'Утро/вечер — одна умная сводка в агенте (не чаще 1–2 раз в день).' },
+      { t: 'toggle', k: 'agentOnboard', label: 'Обучение 14 дней', hint: 'Подсказки «что умеет агент» и кнопка совета. По умолчанию ВКЛ для новых.' },
+      { t: 'note', text: 'Справка: в агенте «обучи меня» / «что умеешь». Раздел помощи ниже в «Поддержка».' },
       { t: 'toggle', k: 'agentChipCats', label: 'Расширенные кнопки в чате (категории)', hint: 'Выкл = мало кнопок. Вкл = много кнопок под полем ввода.' },
       { t: 'range', k: 'agentMemCap', label: 'Память чата (сообщений)', min: 0, max: 5000, step: 50, unit: '', hint: '0 = без лимита. По умолчанию 300. Сколько последних реплик хранить локально.' },
       { t: 'toggle', k: 'agentSuggest', label: 'Учиться на привычках и подсказывать' },
@@ -112,6 +114,8 @@
     { id: 'focus', title: 'Концентрация и Помидор', icon: 'target', items: [
       { t: 'note', text: 'Концентрация (кнопка ◎ в шапке): скрывает лишние вкладки и боковое меню, оставляет Сегодня / Агент / Задачи / Расписание. На ПК контент по центру на всю ширину.' },
       { t: 'toggle', k: 'focusMode', label: 'Включать концентрацию при запуске приложения' },
+      { t: 'note', text: 'Что оставить на экране в режиме концентрации (остальное скрывается):' },
+      { t: 'focus-keep' },
       { t: 'num', k: 'focusTimerMin', label: 'Авто-выход из концентрации (мин)', min: 0, max: 240, hint: '0 — не выходить автоматически' },
       { t: 'text', k: 'focusUntil', label: 'Выйти из концентрации в указанное время', hint: 'Формат ЧЧ:ММ, например 18:00. Пусто — не использовать' },
       { t: 'note', text: 'Помидор (команда «помидор» в агенте или виджет на Сегодня): таймер фокуса с кольцом. Длительности ниже — для пресетов и авто-циклов.' },
@@ -201,6 +205,19 @@
       case 'snaps': { const l = O.backup.list(); return `<div class="o-set"><div class="o-segs"><button class="o-btn ghost sm" data-sact="snap-now">Сделать копию</button><button class="o-btn ghost sm" data-sact="export-all">Скачать всё (JSON)</button><button class="o-btn ghost sm" data-sact="import-all">Импорт</button></div><ul class="o-snaps">${l.map((x, i) => `<li><span>${new Date(x.at).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${esc(x.label)}</span><button class="o-chip" data-sact="snap-restore:${i}">Вернуть</button></li>`).join('') || '<li class="o-muted">Копий пока нет</li>'}</ul><button class="o-link danger" data-sact="reset">Сбросить все данные…</button></div>`; }
       case 'storage': return O.storage ? O.storage.html() : '';
       case 'storageact': return O.storage ? O.storage.actions() : '';
+      case 'focus-keep': {
+        const st = S().settings || {};
+        const keep = st.focusKeep || ['today', 'agent', 'tasks', 'schedule'];
+        const opts = [
+          ['today', 'Сегодня'], ['schedule', 'Расписание'], ['buses', 'Автобус'],
+          ['agent', 'Агент'], ['tasks', 'Задачи'], ['notes', 'Заметки'], ['calc', 'Калькулятор']
+        ];
+        return `<div class="o-set"><label>Элементы в концентрации</label>
+          <div class="o-segs o-focus-keep">${opts.map(([id, lab]) =>
+            `<button type="button" class="o-chip${keep.includes(id) ? ' on' : ''}" data-sact="focus-keep:${id}">${lab}</button>`
+          ).join('')}</div>
+          <small>Нажмите, чтобы показать или скрыть вкладку в режиме ◎</small></div>`;
+      }
       case 'support': {
         return `<div class="o-set">
           <label>Отчёт без личных данных</label>
@@ -217,6 +234,22 @@
             <button type="button" class="o-chip" data-sact="export-chat-json">Скачать JSON</button>
             <button type="button" class="o-chip" data-sact="export-chat-txt">Скачать TXT</button>
             <button type="button" class="o-chip" data-sact="export-chat-mail">Переписка на почту</button>
+          </div>
+        </div>
+        <div class="o-set" style="margin-top:14px">
+          <label>Отчёт сессии (для разбора с разработчиком)</label>
+          <small>Журнал и переписка подтягиваются <b>из памяти</b> — вкладку Агент открывать не нужно. HTML → «Печать → PDF». Может содержать личные данные.</small>
+          <div class="o-set row" style="margin-top:8px"><label>Память журнала действий (КБ)</label>
+            <input class="input o-num" type="range" min="0" max="8192" step="256" data-sk="debugLogMaxKb" value="${esc(String((S().settings||{}).debugLogMaxKb != null ? (S().settings||{}).debugLogMaxKb : 3072))}" />
+            <small><b data-range-k="debugLogMaxKb">${esc(String((S().settings||{}).debugLogMaxKb != null ? (S().settings||{}).debugLogMaxKb : 3072))}</b> КБ · 0 = без лимита. По умолчанию 3072 (~3 МБ).</small></div>
+          <div class="o-set row"><label>Тосты «кнопка → ok»</label>
+            <button type="button" class="o-chip${(S().settings||{}).debugLogToast === false ? '' : ' on'}" data-sact="toggle-debug-toast">${(S().settings||{}).debugLogToast === false ? 'Выкл' : 'Вкл'}</button>
+            <small>Переходы по вкладкам всегда без тоста, только в журнал.</small></div>
+          <div class="o-feedback-row">
+            <button type="button" class="o-chip" data-sact="session-json">JSON + действия</button>
+            <button type="button" class="o-chip" data-sact="session-txt">TXT + действия</button>
+            <button type="button" class="o-chip" data-sact="session-html">HTML (лента)</button>
+            <button type="button" class="o-btn pri" data-sact="session-pdf">PDF (печать)</button>
           </div>
         </div>
         <div class="o-set" style="margin-top:14px">
@@ -379,6 +412,40 @@
           location.href = 'mailto:Chef40rever@ro.ru?subject=' + sub + '&body=' + body;
         }
       } catch (e) { C().toast('Не удалось собрать отчёт'); }
+    }
+        else if (a === 'toggle-debug-toast') {
+      const st = S().settings || {};
+      set('debugLogToast', st.debugLogToast === false ? true : false);
+      O.renderSettings();
+      C().toast((S().settings || {}).debugLogToast === false ? 'Тосты отладки выкл' : 'Тосты отладки вкл');
+    }
+    else if (a === 'focus-keep') {
+      const id = String(p || '').trim();
+      const st = S().settings || {};
+      let keep = (st.focusKeep || ['today', 'agent', 'tasks', 'schedule']).slice();
+      if (keep.includes(id)) keep = keep.filter(x => x !== id);
+      else keep.push(id);
+      if (!keep.length) keep = ['today'];
+      set('focusKeep', keep);
+      try { if (O.focusMode && O.focusMode.apply) O.focusMode.apply(O.focusMode.isOn && O.focusMode.isOn()); } catch (e) {}
+      O.renderSettings();
+    }
+    else if (a === 'session-json' || a === 'session-txt' || a === 'session-html' || a === 'session-pdf') {
+      (async () => {
+        try {
+          const SR = O.sessionReport;
+          if (!SR) { C().toast('Модуль отчёта не загружен'); return; }
+          C().toast('Готовлю отчёт…');
+          if (a === 'session-json') await SR.exportJson();
+          else if (a === 'session-txt') await SR.exportTxt();
+          else if (a === 'session-html') await SR.exportHtml();
+          else await SR.exportPdf();
+          C().toast(a === 'session-pdf' ? 'Печать: «Сохранить как PDF»' : 'Отчёт сохранён');
+        } catch (e) {
+          console.error(e);
+          C().toast('Не удалось собрать отчёт');
+        }
+      })();
     }
     else if (a === 'feedback-send') {
       try {

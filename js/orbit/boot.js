@@ -15,7 +15,8 @@
         try {
           setTimeout(() => {
             if (O.cards && O.cards.maybeProactive) O.cards.maybeProactive({});
-          }, 400);
+            if (O.onboard && O.onboard.maybeSuggest) O.onboard.maybeSuggest();
+          }, 500);
         } catch (e) {}
         return true;
       case 'diagrams': return true;

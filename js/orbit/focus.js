@@ -113,9 +113,22 @@
   };
 
   /* ─── Режим концентрации ─── */
+  function applyFocusKeep() {
+    const keep = (st().focusKeep || DEFAULTS.focusKeep || []).slice();
+    const all = ['today','schedule','buses','agent','tasks','notes','calc','contacts','pack','diary','kanban','more'];
+    document.documentElement.setAttribute('data-focus-keep', keep.join(','));
+    // CSS variables not enough — toggle classes on nav buttons
+    document.querySelectorAll('.nav-btn[data-tab]').forEach(btn => {
+      const tab = btn.getAttribute('data-tab');
+      if (!tab || tab === 'settings' || tab === 'profile') return;
+      if (keep.includes(tab) || tab === 'today') btn.classList.remove('focus-hidden');
+      else btn.classList.add('focus-hidden');
+    });
+  }
   function applyFocusMode(on) {
     const app = document.getElementById('app') || document.body;
     app.classList.toggle('focus-mode', !!on);
+    try { applyFocusKeep(); } catch (e) {}
     const btn = document.getElementById('btn-focus-mode');
     if (btn) {
       btn.classList.toggle('on', !!on);
@@ -130,6 +143,7 @@
   }
 
   O.focusMode = {
+    apply(on) { applyFocusMode(!!on); },
     toggle() {
       const on = !(document.getElementById('app') || document.body).classList.contains('focus-mode');
       applyFocusMode(on);

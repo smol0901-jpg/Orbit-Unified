@@ -1,6 +1,6 @@
 {
-  "version": "5.8.27",
+  "version": "5.8.33",
   "build": 20261021,
   "name": "Контур",
-  "notes": "5.8.27: NLU fixes from chat log — plans, tasks, diagrams, cancel, scheme clear"
+  "notes": "5.8.33: CIFRA card fixed 420px, embed scales pad to fit fully"
 }

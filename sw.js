@@ -1,7 +1,7 @@
 /* Контур · Service Worker — единственный на весь проект.
    CIFRA и FlowForge работают под этим же воркером.
    • офлайн-кэш; обновления с подтверждением; share_target. */
-const V = 'contour-v5.8.27';
+const V = 'contour-v5.8.33';
 const SHARE = 'contour-share';
 const CORE = [
   './', './index.html', './manifest.json', './version.json',
@@ -14,7 +14,7 @@ const CORE = [
   './icons/icon-192.png', './icons/icon-512.png', './icons/icon-maskable-512.png', './icons/apple-touch-icon.png',
   './icons/favicon-32.png', './cifra/index.html', './cifra/css/style.css', './cifra/js/app.js', './cifra/js/voice.js',
   './cifra/js/tools.js', './cifra/js/graph.js', './cifra/js/db.js', './cifra/manifest.webmanifest',
-  './flowforge/index.html', './diagrams/index.html', './js/orbit/diagrams.js', './js/orbit/cards.js', './flowforge/css/style.css', './flowforge/js/app.js', './flowforge/js/agent.js', './flowforge/manifest.webmanifest',
+  './flowforge/index.html', './diagrams/index.html', './js/orbit/diagrams.js', './js/orbit/cards.js', './js/orbit/session-report.js', './js/orbit/onboard.js', './flowforge/css/style.css', './flowforge/js/app.js', './flowforge/js/agent.js', './flowforge/manifest.webmanifest',
   './flowforge/icons/icon-192.png', './flowforge/icons/icon-512.png', './flowforge/icons/icon.svg', './flowforge/icons/logo.webp',
   './cifra/icons/icon-192.png', './cifra/icons/icon-512.png', './cifra/icons/icon.svg', './cifra/icons/brand.png',
   './icons/icon-maskable-192.png', './icons/mstile-150.png'];

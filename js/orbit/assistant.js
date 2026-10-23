@@ -475,11 +475,21 @@
       buttons: [btn('Что взять', 'cmd:что взять ' + day.label), btn('Расписание', 'tab:schedule'), btn('Добавить', 'cmd:добавь встречу')]
     });
   }, 'day');
+
+  on(/^(?:обучи\s*меня|обучение|как\s+пользоваться|что\s+умеет\s+агент|справка\s+по\s+агенту)\s*$/i, () => {
+    if (O.onboard && O.onboard.tipCard) { O.onboard.tipCard(); return R(''); }
+    return R('Напишите «помощь» или откройте Настройки → Агент → Обучение.');
+  }, 'onboard-tip');
+  on(/^(?:выключи\s+обучение|отключи\s+обучение|без\s+обучения)\s*$/i, () => {
+    if (O.onboard) O.onboard.disable();
+    try { setSetting = null; const s = S(); if (s.settings) { s.settings.agentOnboard = false; C().save(); } } catch (e) {}
+    return R('Обучение выключено. Включить снова: Настройки → Агент → «Обучение 14 дней».');
+  }, 'onboard-off');
   on(/^(?:отмена|отмени|отменить|cancel|стоп)$/i, () => {
     try { if (typeof focusClear === 'function') focusClear(); } catch (e) {}
     try { if (O.inline && O.inline.scheme && O.inline.scheme.active) { /* leave scheme mode */ } } catch (e) {}
     return R('Ок, отменил. Чем помочь дальше?', { buttons: [btn('Помощь', 'cmd:помощь'), btn('Что дальше', 'cmd:что дальше')] });
-  }, 'cancel-cmd');
+  }, 'onboard-tip', 'onboard-off', 'cancel-cmd');
 
   on(/^(?:можешь\\s+что[- ]?то\\s+ещ[её]|что\\s+ещ[её]\\s+умеешь|нужен\\s+ответ|подскажи|как\\s+оно|как\\s+дела)\\s*[.?!'']*$/i, () => {
     return R('Могу: расписание и планы, задачи, напоминания, автобус, звонки, калькулятор, схемы, диаграммы, помидор. Спросите, например: «что у меня завтра вечером» или «круговая диаграмма».', {
@@ -982,13 +992,46 @@
       cards: card ? [card] : [],
       buttons: [btn('Редактор', 'tab:diagrams'), btn('Круговая', 'cmd:круговая диаграмма'), btn('Занятость', 'cmd:диаграмма занятости')]
     });
-  }, 'diagrams-hub');
-  on(/(?:нарисуй|создай|построй|покажи)?\s*(?:кругов(ую|ая)\s*диаграмм|pie\s*chart|диаграмм[ау]\s*долей)/i, () => {
-    const doc = O.diagrams ? O.diagrams.fromAgentText('pie') : null;
-    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
-    return R('Круговая диаграмма — в карточке. Данные можно править в редакторе.', {
-      cards: card ? [card] : [],
-      buttons: [btn('Редактор', 'tab:diagrams'), btn('Гистограмма', 'cmd:гистограмма')]
+  }, 'diagram-dash', 'diagram-pie-dash', 'diagram-bar-dash', 'diagrams-hub');
+
+  on(/^(?:диаграмм[аы]?\s+)?(?:с\s+дашборда|из\s+дашборда|по\s+дашборду|из\s+данных|авто\s*диаграмм)\s*$/i, (t, n) => {
+    if (!O.diagrams) return R('Модуль диаграмм не загружен.');
+    const type = /гист|столб/.test(n) ? 'bar' : (/круг|pie|дол/.test(n) ? 'pie' : 'busy');
+    const doc = O.diagrams.fromDashboard(type, { dayOffset: /завтра/.test(n) ? 1 : 0 });
+    const card = O.diagrams.cardFor(doc);
+    return R('Собрал диаграмму **из данных приложения** (расписание, задачи, цели).', {
+      cards: [card],
+      buttons: [
+        btn('В редактор', 'ag:dg-edit:' + (doc.id || '')),
+        btn('Круговая из данных', 'cmd:круговая с дашборда'),
+        btn('Гистограмма недели', 'cmd:гистограмма с дашборда')
+      ]
+    });
+  }, 'diagram-dash');
+  on(/^(?:кругов(?:ая|ую)?\s+)?(?:с\s+дашборда|из\s+данных)\s*$/i, () => {
+    const doc = O.diagrams.fromDashboard('pie', {});
+    return R('Круговая по долям дня (встречи / задачи / цели / свободно).', {
+      cards: [O.diagrams.cardFor(doc)],
+      buttons: [btn('В редактор', 'ag:dg-edit:' + doc.id), btn('Занятость', 'cmd:диаграмма занятости')]
+    });
+  }, 'diagram-pie-dash');
+  on(/^(?:гистограмм[аы]?\s+)?(?:с\s+дашборда|по\s+неделе|из\s+данных)\s*$/i, () => {
+    const doc = O.diagrams.fromDashboard('bar', {});
+    return R('Гистограмма событий по дням недели.', {
+      cards: [O.diagrams.cardFor(doc)],
+      buttons: [btn('В редактор', 'ag:dg-edit:' + doc.id)]
+    });
+  }, 'diagram-bar-dash');
+
+  on(/(?:нарисуй|создай|построй|покажи)?\s*(?:кругов(ую|ая)\s*диаграмм|pie\s*chart|диаграмм[ау]\s*долей)/i, (t, n) => {
+    if (!O.diagrams) return R('Модуль диаграмм не загружен.');
+    const doc = /дашборд|данных|сегодня|авто/.test(n)
+      ? O.diagrams.fromDashboard('pie', {})
+      : O.diagrams.fromAgentText(t || 'pie');
+    const card = O.diagrams.cardFor(doc);
+    return R('Круговая диаграмма в карточке' + (doc.source === 'dashboard' ? ' (из данных дня)' : '') + '.', {
+      cards: [card],
+      buttons: [btn('В редактор', 'ag:dg-edit:' + doc.id), btn('Из дашборда', 'cmd:диаграмма с дашборда'), btn('Гистограмма', 'cmd:гистограмма')]
     });
   }, 'diagram-pie');
   on(/(?:нарисуй|создай|построй|покажи)?\s*(?:гистограмм[ауы]?|столбчат|bar\s*chart)/i, () => {
@@ -999,12 +1042,13 @@
       buttons: [btn('Редактор', 'tab:diagrams'), btn('Круговая', 'cmd:круговая диаграмма')]
     });
   }, 'diagram-bar');
-  on(/(?:диаграмм[аы]?\s*)?(?:занятост|свободн(ого|ое)\s*врем|busy\s*time|загрузк[аи]\s*дня)/i, () => {
-    const doc = O.diagrams ? O.diagrams.fromAgentText('busy') : null;
-    const card = doc && O.diagrams ? O.diagrams.cardFor(doc) : '';
-    return R('Диаграмма занятости / свободного времени.', {
-      cards: card ? [card] : [],
-      buttons: [btn('Редактор', 'tab:diagrams')]
+  on(/(?:диаграмм[аы]?\s*)?(?:занятост|свободн(ого|ое)\s*врем|busy\s*time|загрузк[аи]\s*дня)/i, (t, n) => {
+    if (!O.diagrams) return R('Модуль диаграмм не загружен.');
+    const doc = O.diagrams.fromDashboard('busy', { dayOffset: /завтра/.test(n) ? 1 : 0 });
+    const card = O.diagrams.cardFor(doc);
+    return R('Занятость по **расписанию**' + (/завтра/.test(n) ? ' на завтра' : ' на сегодня') + '. Можно открыть в редакторе.', {
+      cards: [card],
+      buttons: [btn('В редактор', 'ag:dg-edit:' + doc.id), btn('С дашборда', 'cmd:диаграмма с дашборда'), btn('Круговая', 'cmd:круговая диаграмма')]
     });
   }, 'diagram-busy');
   on(/(?:диаграмм[аы]?\s*)?(?:состояний|state\s*machine|статусн)/i, () => {
@@ -1694,7 +1738,11 @@
       version: (window.APP_VERSION || (O.core && O.core().version) || ''),
       exportedAt: new Date().toISOString(),
       count: (A.msgs || []).length,
-      messages: (A.msgs || []).map(m => ({ role: m.role, text: m.text, at: m.at, intent: m.intent }))
+      messages: (A.msgs || []).map(m => ({
+        role: m.role, text: m.text, at: m.at, intent: m.intent,
+        cards: m.cards || [],
+        buttons: m.buttons || []
+      }))
     };
     return { text: lines.join('\n'), json: JSON.stringify(payload, null, 2), payload };
   };
@@ -1707,6 +1755,12 @@
     if (O.motion() !== 'off') await new Promise(r => setTimeout(r, 160));
     let replies;
     try { replies = await A.process(text); } catch (e) { console.error(e); replies = [R('Что-то пошло не так. Попробуйте ещё раз.')]; }
+    try {
+      if (O.sessionReport && O.sessionReport.log) {
+        const intents = (replies || []).map(r => r && r.intent).filter(Boolean).join(',') || 'unknown';
+        O.sessionReport.log({ kind: 'msg', act: 'send', label: String(text).slice(0, 80), result: intents, detail: 'user→agent' });
+      }
+    } catch (e) {}
     // LLM fallback for unknown
     if (replies.length === 1 && replies[0]._needLlm) {
       const s = S().settings || {};
@@ -1754,6 +1808,19 @@
     else if (a === 'unalias') { const k = decodeURIComponent(x || ''); delete mem.aliases[k]; saveMem(); push(R('Убрал привязку «' + k + '».', { buttons: [btn('Мои команды', 'cmd:мои команды')] })); }
     else if (a === 'pick') { const p = S().people.find(v => v.id === x); if (p) { if (pending.pickKey) { mem.aliases[pending.pickKey] = p.id; saveMem(); } push(R(y === 'sms' ? `Сообщение для ${p.name}.` : `Нажмите, чтобы позвонить: ${p.name}.`, { cards: [personCard(p, '')] })); } }
     else if (a === 'done') { const h = S().homework.find(v => v.id === x); if (h) { h.done = true; C().save(); C().render(); undoStack.push(() => { h.done = false; }); push(R(`Отметил: ${h.title}.`, { buttons: [btn('Отменить', 'ag:undo')] })); } }
+    else if (a === 'dg-edit') {
+      const id = x || '';
+      let doc = O._lastDiagram;
+      try {
+        const st = O.diagrams && O.diagrams.storeGet && O.diagrams.storeGet();
+        if (st && st.list) doc = st.list.find(d => d.id === id) || doc;
+      } catch (e) {}
+      if (O.diagrams && O.diagrams.openEditor) O.diagrams.openEditor(doc || id || 'pie');
+      push(R('Открыл **редактор диаграмм**' + (doc && doc.title ? (': «' + doc.title + '»') : '') + '.', {
+        buttons: [btn('Диаграммы', 'tab:diagrams'), btn('С дашборда', 'cmd:диаграмма с дашборда')]
+      }));
+      return;
+    }
     else if (a === 'card-pin') {
       const id = x || '';
       if (O.cards && O.cards.pin) {
@@ -1923,6 +1990,7 @@
     add('Калькулятор', 'калькулятор');
     add('Схемы', 'где схема');
     add('Диаграммы', 'диаграммы');
+    add('Занятость', 'диаграмма занятости');
     add('На экране', 'что на экране');
     add('Память', 'что было вчера');
     add('Концентрация', 'концентрация');
@@ -1931,14 +1999,50 @@
   };
   /** HTML ряда кнопок: при категориях — с подписью «расширенный набор» */
   A.chipsHtml = function () {
-    const st = S().settings || {};
-    const list = A.chips();
-    const chips = list.map(x => `<button class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join('');
+    const st = (S().settings || {});
+    const tip = (O.onboard && O.onboard.enabled && O.onboard.enabled())
+      ? `<button type="button" class="o-chip o-chip-tip" data-ag="cmd:обучи меня">💡 Совет</button>` : '';
+    // компактный режим — одна горизонтальная лента
     if (!st.agentChipCats) {
-      return chips + `<button type="button" class="o-chip o-chip-muted" data-ag="cmd:настройки агента" title="Включить категории">+ ещё</button>`;
+      const chips = A.chips().map(x => `<button type="button" class="o-chip" data-ag="${esc(x.act)}">${esc(x.label)}</button>`).join('');
+      return tip + `<div class="o-chips-scroll">` + chips +
+        `<button type="button" class="o-chip o-chip-muted" data-ag="cmd:настройки агента">+ ещё</button></div>`;
     }
-    return `<div class="o-chips-cat-label">Категории включены</div>` + chips;
+    // категории: кнопки-вкладки, внутри — горизонтальный скролл
+    const groups = [
+      { id: 'day', label: 'День', items: [
+        ['cmd:что дальше', 'Что дальше'], ['cmd:я освободился', 'Автобус'],
+        ['cmd:расписание на сегодня', 'Сегодня'], ['cmd:планы на завтра', 'Завтра']
+      ]},
+      { id: 'work', label: 'Дела', items: [
+        ['cmd:что задано', 'Задачи'], ['cmd:цели', 'Цели'],
+        ['cmd:напомни', 'Напомни'], ['cmd:напоминания', 'Список']
+      ]},
+      { id: 'tools', label: 'Инструменты', items: [
+        ['cmd:калькулятор', 'Калькулятор'], ['cmd:создай схему', 'Схемы'],
+        ['cmd:диаграммы', 'Диаграммы'], ['cmd:диаграмма занятости', 'Занятость'],
+        ['cmd:помидор', 'Помидор']
+      ]},
+      { id: 'more', label: 'Ещё', items: [
+        ['cmd:помощь', 'Помощь'], ['cmd:qr приложения', 'QR'],
+        ['cmd:что на экране', 'На экране'], ['cmd:что ты помнишь', 'Память агента'],
+        ['cmd:концентрация', 'Фокус'], ['cmd:настройки агента', 'Настройки']
+      ]}
+    ];
+    let cat = A._chipCat || 'day';
+    if (!groups.some(g => g.id === cat)) cat = 'day';
+    const tabs = groups.map(g =>
+      `<button type="button" class="o-chip-cat${g.id === cat ? ' on' : ''}" data-chip-cat="${g.id}">${g.label}</button>`
+    ).join('');
+    const g = groups.find(x => x.id === cat) || groups[0];
+    const items = g.items.map(([act, lab]) =>
+      `<button type="button" class="o-chip" data-ag="${esc(act)}">${esc(lab)}</button>`
+    ).join('');
+    return tip +
+      `<div class="o-chip-cats">${tabs}</div>` +
+      `<div class="o-chips-scroll">${items}</div>`;
   };
+
 
   function renderAgentPanel() {
     const body = $('ag-body'); if (!body) return;
@@ -2078,6 +2182,13 @@
           e.preventDefault(); e.stopPropagation();
           A.panel = tab.dataset.apanel || 'chat';
           A.render(false);
+          return;
+        }
+        const catBtn = e.target.closest('[data-chip-cat]');
+        if (catBtn && root.contains(catBtn)) {
+          A._chipCat = catBtn.getAttribute('data-chip-cat');
+          const chips = document.getElementById('ag-chips');
+          if (chips && A.chipsHtml) chips.innerHTML = A.chipsHtml();
           return;
         }
         const a = e.target.closest('[data-ag]');

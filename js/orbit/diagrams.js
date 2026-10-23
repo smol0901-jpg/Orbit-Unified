@@ -207,12 +207,16 @@
   }
 
   function cardHtml(doc, svg, legend) {
-    return `<div class="o-glass-card o-dg-card" data-dg-id="${esc(doc.id || '')}">
-      <div class="o-glass-h"><span>${esc(TYPES[doc.type] ? TYPES[doc.type].title : 'Диаграмма')}</span><em>${esc(doc.title || '')}</em></div>
+    const id = esc(doc.id || '');
+    const src = doc.source === 'dashboard' ? '<small class="dg-src">из дашборда</small>' : (doc.source === 'sample' ? '<small class="dg-src">пример</small>' : '');
+    return `<div class="o-glass-card o-dg-card" data-dg-id="${id}">
+      <div class="o-glass-h"><span>${esc(TYPES[doc.type] ? TYPES[doc.type].title : 'Диаграмма')}</span><em>${esc(doc.title || '')}</em>${src}</div>
       <div class="dg-preview">${svg}</div>
       <div class="dg-legend">${legend || ''}</div>
       <div class="o-m-b" style="padding:8px 12px 12px;display:flex;flex-wrap:wrap;gap:6px">
-        <button type="button" class="o-chip" data-ag="tab:diagrams">Редактор</button>
+        <button type="button" class="o-chip" data-ag="ag:dg-edit:${id}">В редактор</button>
+        <button type="button" class="o-chip" data-ag="tab:diagrams">Открыть редактор</button>
+        <button type="button" class="o-chip" data-ag="cmd:диаграмма с дашборда">С дашборда</button>
         <button type="button" class="o-chip" data-ag="ag:dg-share">Поделиться</button>
       </div>
     </div>`;
@@ -248,10 +252,122 @@
     return null;
   }
 
+  function coreS() {
+    try {
+      if (O.core && O.core().S) return O.core().S();
+      if (window.OrbitCore && OrbitCore.S) return OrbitCore.S();
+    } catch (e) {}
+    return {};
+  }
+
+  /** Данные с дашборда / расписания / задач / целей */
+  function fromDashboard(type, opts) {
+    opts = opts || {};
+    const t = TYPES[type] ? type : 'busy';
+    const E = O.engine;
+    const s = coreS();
+    const now = opts.date ? new Date(opts.date) : new Date();
+    const dayOff = opts.dayOffset || 0;
+    const day = E && E.addDays ? E.addDays(now, dayOff) : now;
+    const doc = defaultDoc(t);
+    doc.source = 'dashboard';
+    doc.title = (opts.title || (TYPES[t] && TYPES[t].title) || 'Диаграмма') +
+      (dayOff === 1 ? ' · завтра' : dayOff === 0 ? ' · сегодня' : '');
+
+    const list = (E && E.eventsOn) ? ((E.eventsOn(s, day).list) || []) : [];
+    const hw = (s.homework || []).filter(h => !h.done);
+    const goals = (s.goals || []).filter(g => (g.progress || 0) < 100);
+
+    if (t === 'busy') {
+      let dayStart = 8, dayEnd = 20;
+      const blocks = [];
+      list.forEach(e => {
+        const startH = Math.floor((e.s || 0) / 60);
+        const endH = Math.max(startH + 1, Math.ceil((e.e || e.s || 0) / 60));
+        dayStart = Math.min(dayStart, Math.max(6, startH - 1));
+        dayEnd = Math.max(dayEnd, Math.min(23, endH + 1));
+        blocks.push({
+          label: (e.title || e.subject || e.name || 'Событие').slice(0, 28),
+          start: startH,
+          end: endH,
+          kind: 'busy'
+        });
+      });
+      // свободные окна между событиями
+      const sorted = blocks.slice().sort((a, b) => a.start - b.start);
+      const withFree = [];
+      let cursor = dayStart;
+      sorted.forEach(b => {
+        if (b.start > cursor) withFree.push({ label: 'Свободно', start: cursor, end: b.start, kind: 'free' });
+        withFree.push(b);
+        cursor = Math.max(cursor, b.end);
+      });
+      if (cursor < dayEnd) withFree.push({ label: 'Свободно', start: cursor, end: dayEnd, kind: 'free' });
+      doc.dayStart = dayStart;
+      doc.dayEnd = dayEnd;
+      doc.blocks = withFree.length ? withFree : defaultDoc('busy').blocks;
+      if (!list.length) {
+        doc.title = 'Занятость · нет событий (пример)';
+        doc.source = 'sample';
+        Object.assign(doc, defaultDoc('busy'), { id: doc.id, source: 'sample', title: doc.title });
+      }
+    } else if (t === 'pie') {
+      // доли дня: встречи / задачи / цели / прочее
+      const meetMin = list.reduce((a, e) => a + Math.max(15, (e.e || e.s || 0) - (e.s || 0)), 0);
+      const taskW = Math.max(hw.length * 20, hw.length ? 15 : 0);
+      const goalW = Math.max(goals.length * 15, goals.length ? 10 : 0);
+      const freeW = Math.max(30, 240 - Math.floor(meetMin / 2) - taskW - goalW);
+      const slices = [
+        { label: 'Встречи', value: Math.max(5, Math.floor(meetMin / 3) || (list.length ? 40 : 10)), color: '#6366f1' },
+        { label: 'Задачи', value: taskW || 10, color: '#22c55e' },
+        { label: 'Цели', value: goalW || 10, color: '#f59e0b' },
+        { label: 'Свободно', value: freeW, color: '#94a3b8' }
+      ];
+      doc.slices = slices;
+      doc.title = doc.title || 'Доли дня';
+    } else if (t === 'bar') {
+      // по дням недели или задачи по статусу
+      if (E && E.eventsOn) {
+        const bars = [];
+        for (let i = 0; i < 7; i++) {
+          const d = E.addDays(now, i - (now.getDay() === 0 ? 6 : now.getDay() - 1)); // пн-вс
+          const L = E.eventsOn(s, d).list || [];
+          const names = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+          bars.push({ label: names[i], value: L.length });
+        }
+        doc.bars = bars;
+        doc.title = 'События по дням недели';
+      } else {
+        doc.bars = [
+          { label: 'Задачи', value: hw.length },
+          { label: 'Цели', value: goals.length },
+          { label: 'Встречи', value: list.length }
+        ];
+      }
+    } else if (t === 'state') {
+      doc.states = ['Открыто', 'В работе', 'Готово'];
+      doc.edges = [
+        { from: 'Открыто', to: 'В работе', label: 'взять' },
+        { from: 'В работе', to: 'Готово', label: 'сдать' }
+      ];
+      doc.title = 'Задачи · статусы';
+    }
+
+    storeSave(doc);
+    return doc;
+  }
+
   function fromAgentText(text) {
     const type = parseQuick(text) || 'pie';
+    const n = String(text || '').toLowerCase();
+    // авто с дашборда
+    if (/дашборд|сегодня|завтра|расписан|занят|свободн|из\s+данных|по\s+дням|портал|авто/.test(n) ||
+        (type === 'busy' || type === 'bar')) {
+      const dayOffset = /завтра/.test(n) ? 1 : 0;
+      return fromDashboard(type, { dayOffset });
+    }
     const doc = defaultDoc(type);
-    // try "A 30, B 70"
+    doc.source = 'custom';
     const pairs = String(text).match(/([A-Za-zА-Яа-яЁё][^,:\d]{0,20})\s*[:=\s]\s*(\d+(?:[.,]\d+)?)/g);
     if (pairs && pairs.length >= 2 && (type === 'pie' || type === 'bar')) {
       const items = pairs.map(p => {
@@ -260,9 +376,37 @@
       }).filter(Boolean);
       if (type === 'pie') doc.slices = items.map((x, i) => Object.assign(x, { color: ['#6366f1', '#22c55e', '#f59e0b', '#ec4899', '#94a3b8'][i % 5] }));
       else doc.bars = items;
+      doc.source = 'custom';
+    } else if (type === 'pie' || type === 'bar' || type === 'busy') {
+      // без своих чисел — подтянуть дашборд
+      return fromDashboard(type, {});
     }
     storeSave(doc);
     return doc;
+  }
+
+  function openEditor(typeOrDoc) {
+    try {
+      let doc = null, type = 'pie';
+      if (typeOrDoc && typeof typeOrDoc === 'object') {
+        doc = typeOrDoc;
+        type = doc.type || 'pie';
+        storeSave(doc);
+      } else {
+        type = typeOrDoc || (O._lastDiagram && O._lastDiagram.type) || 'pie';
+        doc = O._lastDiagram || null;
+      }
+      if (O.core && O.core().switchTab) O.core().switchTab('diagrams');
+      else if (window.OrbitCore && OrbitCore.switchTab) OrbitCore.switchTab('diagrams');
+      const send = () => {
+        const fr = document.getElementById('diagrams-frame');
+        if (fr && fr.contentWindow) {
+          try { fr.contentWindow.postMessage({ t: 'dg-open', type: type, doc: doc || O._lastDiagram }, '*'); } catch (e) {}
+        }
+      };
+      setTimeout(send, 120);
+      setTimeout(send, 400);
+    } catch (e) { console.error(e); }
   }
 
   O.diagrams = {
@@ -273,17 +417,8 @@
     storeSave,
     parseQuick,
     fromAgentText,
-    openEditor(type) {
-      try {
-        if (O.core && O.core().switchTab) O.core().switchTab('diagrams');
-        const fr = document.getElementById('diagrams-frame');
-        if (fr && fr.contentWindow) {
-          setTimeout(() => {
-            try { fr.contentWindow.postMessage({ t: 'dg-open', type: type || 'pie', doc: O._lastDiagram }, '*'); } catch (e) {}
-          }, 200);
-        }
-      } catch (e) { console.error(e); }
-    },
+    fromDashboard,
+    openEditor,
     cardFor(doc) {
       const r = render(doc);
       return r.html;

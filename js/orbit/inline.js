@@ -50,7 +50,9 @@
     const d = dockEl(); if (!d) return null;
     let f = d.querySelector('iframe');
     if (!f) {
-      f = document.createElement('iframe'); f.id = 'ag-calc-frame'; f.title = 'CIFRA Pro в чате'; f.setAttribute('loading', 'eager'); f.allow = 'clipboard-read; clipboard-write; microphone';
+      f = document.createElement('iframe'); f.id = 'ag-calc-frame'; f.title = 'CIFRA Pro в чате';
+      f.setAttribute('loading', 'eager'); f.allow = 'clipboard-read; clipboard-write; microphone';
+      f.setAttribute('height', '420'); f.style.height = '420px'; f.style.minHeight = '420px';
       f.src = 'cifra/index.html?embed=1'; d.querySelector('.o-dock-b').appendChild(f);
     }
     return f;
@@ -80,10 +82,22 @@
     o = o || {};
     if (O.actions && O.actions.go && (!window.OrbitCore || OrbitCore.tab !== 'agent')) O.actions.go('agent');
     if (O.assistant.panel && O.assistant.panel !== 'chat') { O.assistant.panel = 'chat'; O.assistant.render(false); }
-    dockEl(); const f = frameEl();
+    const d = dockEl(); const f = frameEl();
     dock.open = true; dock.min = false; if (o.tab) dock.tab = o.tab;
+    // держим панель в конце ленты, не под composer
+    try {
+      const msgs = document.getElementById('ag-msgs');
+      if (msgs && d && d.parentNode !== msgs) msgs.appendChild(d);
+      else if (msgs && d) msgs.appendChild(d);
+    } catch (e) {}
     syncDock();
-    if (f) { if (o.tab) post({ type: 'orbit-calc', tab: o.tab }); if (o.expr) post({ type: 'orbit-calc', expr: o.expr, tab: 'calc' }); }
+    if (f) {
+      if (o.tab) post({ type: 'orbit-calc', tab: o.tab });
+      if (o.expr) post({ type: 'orbit-calc', expr: o.expr, tab: 'calc' });
+      // подсказать embed-раскладку
+      try { f.contentWindow && f.contentWindow.document && f.contentWindow.document.documentElement.classList.add('cifra-embed'); } catch (e) {}
+    }
+    setTimeout(() => { try { d && d.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {} }, 80);
   };
   I.closeCalc = function () { dock.open = false; syncDock(); };
 
