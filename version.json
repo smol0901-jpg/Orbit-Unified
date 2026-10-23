@@ -1,6 +1,6 @@
 {
-  "version": "5.8.34",
-  "build": 20261021,
+  "version": "5.8.35",
+  "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.34: TZ full fix calc close/card, diagrams→agent, flow fit, desktop calc width"
+  "notes": "5.8.35: UI responsive fix — calc + FlowForge for PC/tablet/phone (embed height, rail, keypad, palette)"
 }

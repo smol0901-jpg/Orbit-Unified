@@ -1,3 +1,12 @@
+## 5.8.35 — UI адаптация калькулятора и схем (PC / планшет / телефон)
+**Исправлено.**
+- Высота iframe CIFRA / FlowForge: измеряется реальный header + bottom-nav (на PC rail — nav скрыт).
+- resize / ориентация: повторный fit + orbit-fit для схем.
+- CSS embed-tab: flex-fill на ≥720px, корректный calc на телефоне; diagrams включены.
+- CIFRA: keypad minmax(0,1fr), --cap на низкой высоте, chips без overflow.
+- FlowForge: на ≤480px палитра снизу горизонтально; embed class.
+- Версия 5.8.35 (version.json, APP_VERSION, SW cache).
+
 # Журнал изменений
 
 ## 5.8.10 — схемы↔агент, концентрация, помидор, офлайн, автор

@@ -3,7 +3,7 @@
 
   const STORAGE_KEY = 'orbit-planner-v3';
   const BACKUP_KEY = 'orbit-planner-backup-v3';
-  const APP_VERSION = '5.8.34';
+  const APP_VERSION = '5.8.35';
   const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
   const DAYS_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
   const SUBJECTS = [
@@ -208,7 +208,7 @@
     const fab = document.getElementById('fab');
     fab.classList.toggle('hidden', !['schedule', 'tasks', 'notes', 'buses', 'kanban', 'contacts'].includes(tab));
     if (tab !== 'profile' || profileTab !== 'qr') stopQrScan();
-    // CIFRA / FlowForge embeds need full-height main + ensure iframe src
+    // CIFRA / FlowForge / diagrams: full-height embed, adaptive PC / tablet / phone
     const isEmbed = tab === 'calc' || tab === 'flow' || tab === 'diagrams';
     document.body.classList.toggle('embed-tab', isEmbed);
     document.documentElement.classList.toggle('embed-tab', isEmbed);
@@ -220,23 +220,55 @@
         if (!fr.getAttribute('src') || fr.getAttribute('src') === 'about:blank') {
           fr.setAttribute('src', src);
         }
+        const wrap = fr.parentElement;
+        if (wrap) { wrap.style.height = ''; wrap.style.minHeight = ''; }
+        fr.style.height = '';
+        fr.style.minHeight = '';
         requestAnimationFrame(function () {
-          var wrap = fr.parentElement;
-          if (wrap) {
-            var h = Math.max(320, window.innerHeight - 120);
-            wrap.style.height = h + 'px';
-            fr.style.height = h + 'px';
-          }
-          if (tab === 'flow') {
-            setTimeout(function () {
-              try { fr.contentWindow.postMessage({ type: 'orbit-fit' }, '*'); } catch (e) {}
-            }, 300);
-          }
+          fitEmbedFrame(fr, tab);
         });
       }
     }
     render();
   }
+
+  function fitEmbedFrame(fr, tab) {
+    if (!fr) return;
+    const wrap = fr.parentElement;
+    const header = document.querySelector('.app-header, header.app-header');
+    const nav = document.querySelector('nav.main-nav');
+    const railVisible = window.matchMedia('(min-width: 720px)').matches;
+    const headerH = header ? header.getBoundingClientRect().height : 56;
+    const navH = (!railVisible && nav && getComputedStyle(nav).display !== 'none')
+      ? nav.getBoundingClientRect().height : 0;
+    const avail = Math.max(280, window.innerHeight - headerH - navH);
+    if (wrap) {
+      wrap.style.height = avail + 'px';
+      wrap.style.minHeight = Math.min(avail, 320) + 'px';
+    }
+    fr.style.height = '100%';
+    fr.style.minHeight = '100%';
+    fr.style.width = '100%';
+    if (tab === 'flow' || tab === 'diagrams') {
+      setTimeout(function () {
+        try { fr.contentWindow.postMessage({ type: 'orbit-fit' }, '*'); } catch (e) {}
+      }, 200);
+      setTimeout(function () {
+        try { fr.contentWindow.postMessage({ type: 'orbit-fit' }, '*'); } catch (e) {}
+      }, 600);
+    }
+  }
+  let _embedFitT;
+  window.addEventListener('resize', function () {
+    clearTimeout(_embedFitT);
+    _embedFitT = setTimeout(function () {
+      if (!document.body.classList.contains('embed-tab')) return;
+      const tab = currentTab;
+      const frameId = tab === 'calc' ? 'cifra-frame' : (tab === 'diagrams' ? 'diagrams-frame' : 'flow-frame');
+      const fr = document.getElementById(frameId);
+      if (fr) fitEmbedFrame(fr, tab);
+    }, 120);
+  });
   // нижняя панель (телефон) и боковое меню (ПК/планшет) — один обработчик
   ['main-nav', 'rail'].forEach(id => {
     const el = document.getElementById(id);
