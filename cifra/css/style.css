@@ -583,3 +583,13 @@ html.cifra-embed #calc #pad.pad{min-height:180px}
 html.cifra-embed .view[hidden],
 html.cifra-embed .tool[hidden],
 html.cifra-embed section[hidden]{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;flex:none!important}
+
+
+/* 5.8.40: sci только в математическом */
+#sciPad[hidden],#sciPad[hidden].pad,#sciPad[hidden].sci{
+  display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;
+  overflow:hidden!important;margin:0!important;padding:0!important;border:0!important;flex:0!important;
+}
+#modeBar[hidden]{display:none!important}
+#calc #pad.pad{grid-template-rows:repeat(6,minmax(0,1fr))}
+:root.sm #calc #pad.pad{grid-template-rows:repeat(5,minmax(0,1fr))}
