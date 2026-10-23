@@ -30,16 +30,17 @@ button{border:0;cursor:pointer;touch-action:manipulation;background:transparent}
 .ib svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .view{flex:1;min-height:0;display:flex;flex-direction:column;overflow-y:auto;scrollbar-width:thin}
 .view>*{flex:none}
+#calc #pad,#calc #pad.pad{flex:1 1 auto!important;min-height:0}
 .tool{gap:6px}
-.screen{flex:1 1 auto!important;min-height:80px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;padding:6px 8px 10px;overflow:hidden;touch-action:pan-y;border-radius:16px;background:color-mix(in srgb,var(--key) 40%,transparent)}
+.screen{flex:0 0 auto;min-height:64px;max-height:100px;display:flex;flex-direction:column;justify-content:flex-end;align-items:flex-end;padding:6px 10px 8px;overflow:hidden;touch-action:pan-y;border-radius:16px;background:color-mix(in srgb,var(--key) 40%,transparent);border:1px solid var(--line)}
 .stl{display:flex;gap:4px;width:100%;align-items:center;margin-bottom:4px}
 .stl i{flex:1}#mb{font-size:.75rem;color:var(--mut);padding:2px 8px;background:var(--op);border-radius:999px;color:var(--opfg)}
 .stl button{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;color:var(--mut)}
 .stl button:active{background:var(--key)}
 .stl svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
-#expr{color:var(--mut);font-size:1.15rem;white-space:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none;min-height:1.35em;width:100%;text-align:right}
+#expr{color:var(--mut);font-size:clamp(.85rem,2.4vw,1.05rem);white-space:nowrap;max-width:100%;overflow-x:auto;scrollbar-width:none;min-height:1.2em;width:100%;text-align:right;opacity:.9}
 #expr::-webkit-scrollbar{display:none}
-#res{font-size:3.5rem;font-weight:650;letter-spacing:-.03em;text-align:right;word-break:break-all;cursor:pointer;margin-top:2px;transition:font-size .15s,color .2s;width:100%}
+#res{font-size:clamp(1.8rem,7vw,3.2rem);font-weight:650;letter-spacing:-.03em;text-align:right;word-break:break-all;cursor:pointer;margin-top:0;transition:font-size .15s,color .2s;width:100%;line-height:1.15;max-height:2.4em;overflow:hidden}
 #res.err{color:#e5484d;animation:sh .35s}
 @keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 .pad{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:8px}
@@ -49,31 +50,65 @@ button{border:0;cursor:pointer;touch-action:manipulation;background:transparent}
 .pad .op{background:var(--op);color:var(--opfg);font-size:1.65rem}
 .pad .eq{background:linear-gradient(145deg,var(--eq),color-mix(in srgb,var(--eq) 70%,#000));color:#fff;font-size:1.85rem;box-shadow:0 4px 16px color-mix(in srgb,var(--eq) 35%,transparent)}
 .pad .z{grid-column:span 2}
-.sci{
-  gap:6px;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  margin-top:4px;
-  flex:0 0 auto;
+.mode-bar{
+  display:flex;gap:6px;flex:0 0 auto;margin:4px 0 2px;padding:0;
 }
-.sci button{
+.mode-btn{
+  flex:1;min-height:36px;padding:6px 10px;border-radius:12px;
+  background:var(--key);color:var(--mut);font-size:.82rem;font-weight:600;
+  border:1px solid transparent;transition:background .15s,color .15s,border-color .15s;
+}
+.mode-btn.on{
+  background:var(--op);color:var(--opfg);border-color:color-mix(in srgb,var(--eq) 35%,transparent);
+}
+.mode-btn:active{transform:scale(.97)}
+/* calc column layout: циферблат + режимы + mem + sci? + цифры */
+#calc.view{
+  display:flex;flex-direction:column;min-height:0;overflow:hidden;gap:4px;
+}
+#calc #memp{flex:0 0 auto}
+#calc #sciPad{
+  flex:0 0 auto;
+  gap:4px;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  margin-top:0;
+  max-height:min(28vh,200px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-width:thin;
+  padding-right:2px;
+}
+#calc #sciPad.sci button{
   height:auto!important;
-  min-height:36px;
-  padding:6px 4px;
-  font-size:clamp(.72rem,.95vw + .55rem,.88rem);
-  line-height:1.15;
+  min-height:30px;
+  max-height:34px;
+  padding:3px 2px;
+  font-size:clamp(.65rem,.9vw + .5rem,.8rem);
+  line-height:1.1;
   background:var(--fn);
-  border-radius:calc(var(--kr)*.65);
+  border-radius:calc(var(--kr)*.6);
   font-weight:550;
   white-space:nowrap;
   overflow:hidden;
   text-overflow:ellipsis;
-  letter-spacing:-.01em;
+  letter-spacing:-.02em;
 }
-.mem{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:4px}
+#calc #pad.pad{
+  flex:1 1 auto;
+  min-height:0;
+  grid-template-rows:repeat(5,minmax(0,1fr));
+  margin-top:2px;
+  align-content:stretch;
+}
+#calc #pad.pad button{
+  height:100%;
+  min-height:0;
+}
+.mem{grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin-top:2px}
 .mem button{
-  height:calc(clamp(30px,calc(var(--u)*.55),40px)*var(--ks));
-  min-height:32px;
-  font-size:clamp(.72rem,2.2vw,.85rem);
+  height:calc(clamp(28px,calc(var(--u)*.5),36px)*var(--ks));
+  min-height:28px;
+  font-size:clamp(.68rem,2vw,.8rem);
   background:var(--fn);
   border-radius:12px;
   white-space:nowrap;
@@ -81,16 +116,12 @@ button{border:0;cursor:pointer;touch-action:manipulation;background:transparent}
   text-overflow:ellipsis;
   padding:0 2px;
 }
-/* ƒx активен — режим «Математический» */
 .mem button[data-k=sci][aria-pressed=true]{
-  background:var(--op);
-  color:var(--opfg);
-  font-weight:700;
+  background:var(--op);color:var(--opfg);font-weight:700;
 }
-/* обычный режим: основной pad чуть выше */
-:root:not(.sm) #pad.pad{min-height:220px}
-:root.sm #pad.pad{min-height:160px}
-:root.sm .sci{max-height:none}
+/* обычный: больше места цифрам; математический: sci компактный сверху */
+:root:not(.sm) #calc #pad.pad{min-height:200px}
+:root.sm #calc #pad.pad{min-height:140px}
 .rp::after{content:"";position:absolute;left:var(--x);top:var(--y);width:10px;height:10px;margin:-5px;border-radius:50%;background:currentColor;opacity:0;pointer-events:none;animation:rp .5s ease-out}
 @keyframes rp{from{opacity:.28;transform:scale(0)}to{opacity:0;transform:scale(32)}}
 .nav{display:flex;gap:2px;padding:8px 0 2px;flex:none;overflow-x:auto;scrollbar-width:none;border-top:1px solid var(--line);margin-top:4px}
@@ -474,13 +505,22 @@ dialog .acts button:active{background:var(--fn)}
 
 .top #mic{background:var(--op);color:var(--opfg)}
 
-/* v5.2.5: клавиатура подстраивается под высоту окна (в Контуре калькулятор в iframe), а не под оценку по 100dvh:
-   строка выражения/истории больше не обрезается, нижний ряд не уходит под навигацию */
-#calc .screen{flex:1 1 auto!important;min-height:112px}
-#calc #expr{min-height:1.5em;line-height:1.5}
-#calc #memp button{height:36px}
-#calc #pad{flex:0 1 auto;min-height:0;grid-template-rows:repeat(5,minmax(34px,calc(var(--cap)*var(--ks))))}
+/* 5.8.39: пропорции — циферблат компактный, цифры забирают оставшееся место */
+#calc .screen{
+  flex:0 0 auto!important;
+  min-height:64px!important;
+  max-height:100px!important;
+}
+#calc #expr{min-height:1.15em;line-height:1.25;font-size:clamp(.8rem,2vw,.95rem)}
+#calc #res{font-size:clamp(1.6rem,6vw,2.8rem)!important}
+#calc #memp button{height:32px;min-height:32px}
+#calc #pad{
+  flex:1 1 auto!important;
+  min-height:0!important;
+  grid-template-rows:repeat(5,minmax(0,1fr))!important;
+}
 #calc #pad button{height:100%;min-height:0}
+#calc.view{overflow:hidden!important}
 
 /* Fixes for iOS overflow and mode bar under tab-bar (test run 2026-10-21) */
 .app, .shell, #calc, .pad {

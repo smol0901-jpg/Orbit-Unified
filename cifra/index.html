@@ -135,6 +135,27 @@ html.cifra-embed nav.nav button{
 }
 html.cifra-embed nav.nav button i,html.cifra-embed nav.nav svg{width:14px!important;height:14px!important}
 html.cifra-embed #drawer,html.cifra-embed dialog{max-height:85%!important}
+
+html.cifra-embed .mode-bar{margin:2px 0!important;gap:4px!important}
+html.cifra-embed .mode-btn{min-height:32px!important;font-size:.75rem!important;padding:4px 8px!important;border-radius:10px!important}
+html.cifra-embed .screen{
+  flex:0 0 auto!important;min-height:56px!important;max-height:88px!important;
+  padding:4px 8px!important;justify-content:flex-end!important;
+}
+html.cifra-embed #expr{font-size:.75rem!important;min-height:1em!important}
+html.cifra-embed #res{font-size:clamp(1.35rem,4.5vh,2.1rem)!important;line-height:1.1!important;max-height:1.4em!important}
+html.cifra-embed #calc #sciPad{
+  max-height:min(26vh,160px)!important;overflow-y:auto!important;
+}
+html.cifra-embed #calc #sciPad button{
+  min-height:28px!important;max-height:32px!important;
+  font-size:clamp(.62rem,1.5vh,.76rem)!important;padding:2px 1px!important;
+}
+html.cifra-embed #calc #pad.pad{
+  flex:1 1 auto!important;min-height:150px!important;
+  grid-template-rows:repeat(5,minmax(0,1fr))!important;
+}
+html.cifra-embed #calc #pad.pad button{height:100%!important;min-height:0!important}
 </style>
 <script>
 (function(){
@@ -157,6 +178,10 @@ html.cifra-embed #drawer,html.cifra-embed dialog{max-height:85%!important}
   </header>
   <section id="calc" class="view">
     <div class="screen"><div class="stl"><span id="mb" hidden></span><i></i><button id="copy" aria-label="Копировать"><svg viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"/></svg></button><button id="paste" aria-label="Вставить"><svg viewBox="0 0 24 24"><path d="M8 4h8v3H8zM6 6H5v14h14V6h-1"/></svg></button><button id="share" aria-label="Поделиться"><svg viewBox="0 0 24 24"><path d="M12 15V3M8 7l4-4 4 4M5 12v8h14v-8"/></svg></button></div><div id="expr"></div><div id="res" title="Нажмите, чтобы скопировать">0</div></div>
+    <div id="modeBar" class="mode-bar" role="group" aria-label="Режим калькулятора">
+      <button type="button" data-mode="basic" class="mode-btn on">Обычный</button>
+      <button type="button" data-mode="sci" class="mode-btn">Математический</button>
+    </div>
     <div id="memp" class="pad mem"></div>
     <div id="sciPad" class="pad sci" hidden></div>
     <div id="pad" class="pad"></div>

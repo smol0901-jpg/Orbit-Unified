@@ -34,11 +34,20 @@ function apply(){const r=document.documentElement,s=r.style;
   const sciBtn=$('#memp [data-k=sci]');
   if(sciBtn){
     sciBtn.setAttribute('aria-pressed',!!cfg.sci);
-    sciBtn.setAttribute('title',cfg.sci?'Математический режим (нажмите для обычного)':'Обычный режим (нажмите для математического)');
+    sciBtn.setAttribute('title',cfg.sci?'Математический режим':'Обычный режим');
     sciBtn.setAttribute('aria-label',sciBtn.getAttribute('title'));
     sciBtn.textContent=cfg.sci?'SCI':'ƒx';
   }
   $('#sciPad').hidden=!cfg.sci;
+  document.documentElement.classList.toggle('sm',!!cfg.sci);
+  const mb=$('#modeBar');
+  if(mb){
+    mb.querySelectorAll('.mode-btn').forEach(b=>{
+      const on=(b.dataset.mode==='sci')===!!cfg.sci;
+      b.classList.toggle('on',on);
+      b.setAttribute('aria-pressed',on?'true':'false');
+    });
+  }
   $('#hap').hidden=!HM;$('#hap').classList.toggle('off',!cfg.hap);mark(1);
   $('#pad [data-k="."]').textContent=cfg.dsep;wake()}
 mq.onchange=apply;
@@ -69,6 +78,19 @@ const toExpr=v=>{const s=String(v);return(/e/.test(s)?v.toExponential().replace(
 
 function mk(list,el){list.forEach(([l,k,c])=>{const b=document.createElement('button');b.textContent=l;b.dataset.k=k||l;if(c)b.className=c;el.append(b)})}
 mk(MAIN,$('#pad'));mk(MEM,$('#memp'));mk(SCI,$('#sciPad'));
+
+/* переключатель Обычный / Математический */
+(function(){
+  const bar=$('#modeBar'); if(!bar) return;
+  bar.addEventListener('click',e=>{
+    const b=e.target.closest('.mode-btn'); if(!b) return;
+    const want=b.dataset.mode==='sci';
+    if(want===!!cfg.sci) return;
+    cfg.sci=want; save(); apply();
+    toast(want?'Математический режим':'Обычный режим');
+  });
+})();
+
 
 function preview(){
   const s=expr.replace(/(?:[+−×÷^(]|(?:a?sin|a?cos|a?tan|ln|log|√|abs)\()+$/,'');
