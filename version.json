@@ -1,6 +1,6 @@
 {
-  "version": "5.8.36",
+  "version": "5.8.37",
   "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.36: CIFRA keypad floor + agent dock close (remove iframe) + dock height CSS cleanup"
+  "notes": "5.8.37: CIFRA tabs — only active view visible (embed CSS no longer overrides [hidden]); card max-width 460px"
 }
