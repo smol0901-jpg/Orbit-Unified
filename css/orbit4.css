@@ -521,7 +521,7 @@ body.embed-tab #tab-diagrams.active {
 .o-chat #ag-dock{margin:8px 0}
 
 /* dock контейнеры агента — не на весь экран */
-#ag-dock,#ag-pomo-dock{max-height:min(42vh,280px)}
+#ag-pomo-dock{max-height:min(42vh,280px)}
 #ag-dock iframe{height:min(36vh,240px)!important}
 
 /* Карточка помидора в ленте сообщений (как график) */
@@ -639,7 +639,7 @@ body.embed-tab #tab-diagrams.active {
 .o-glass-md .o-glass-gap{height:8px}
 .o-glass-md strong{font-weight:700;color:var(--accent)}
 .o-m-t .o-glass-md{margin-top:0}
-.o-chips-row{flex-wrap:wrap;max-height:none}
+.o-chips-row{flex-wrap:nowrap;flex-direction:column;align-items:stretch;max-height:none;overflow:visible}
 
 /* Схема PNG в чате агента */
 .o-scheme-card .o-scheme-png {
@@ -742,17 +742,16 @@ body.embed-tab #tab-diagrams.active {
 }
 .o-dock-inchat.min .o-dock-b,
 .o-dock-inchat.min .o-dock-tabs{display:none}
-#ag-dock.o-dock-inchat,#ag-flow-dock.o-dock-inchat{max-height:min(52vh,420px)}
+#ag-dock.o-dock-inchat,#ag-flow-dock.o-dock-inchat{max-height:none}
 @media (max-width:480px){
-  .o-dock-inchat{max-height:min(48vh,360px);border-radius:12px}
-  .o-dock-inchat .o-dock-b iframe{height:min(38vh,280px)!important}
+  .o-dock-inchat{border-radius:12px}
+  /* height set in 5.8.33 override */
 }
 @media (min-width:900px){
   .o-dock-inchat{max-width:min(560px,100%);margin-left:auto;margin-right:auto}
-  .o-dock-inchat .o-dock-b iframe{height:min(40vh,360px)!important}
+  /* height set in 5.8.33 override */
 }
-/* Не даём старому правилу раздувать iframe */
-#ag-dock iframe,#ag-flow-dock iframe{height:min(42vh,340px)!important}
+
 
 .o-live-card{position:relative}
 .o-card-live{
@@ -764,3 +763,119 @@ body.embed-tab #tab-diagrams.active {
 .o-card-body .glass-table{width:100%;border-collapse:collapse;margin:8px 0;font-size:.82rem}
 .o-card-body .glass-table td{padding:4px 6px;border-bottom:1px solid color-mix(in srgb,var(--line) 70%,transparent);vertical-align:top}
 .o-card-body .glass-table td:first-child{color:var(--text-muted);white-space:nowrap;width:3.5rem}
+
+.ag-action-toast{
+  position:fixed;left:50%;bottom:calc(var(--nav-h,56px) + 16px + env(safe-area-inset-bottom,0px));
+  transform:translateX(-50%) translateY(12px);opacity:0;pointer-events:none;
+  z-index:9999;max-width:min(92vw,420px);
+  padding:8px 14px;border-radius:999px;font:600 .75rem system-ui,sans-serif;
+  background:color-mix(in srgb,var(--bg-card,#1e293b) 92%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent,#6366f1) 45%,var(--line,#334155));
+  color:var(--text,#e2e8f0);box-shadow:0 8px 24px rgba(0,0,0,.25);
+  transition:opacity .2s,transform .2s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.ag-action-toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (min-width:720px){
+  .ag-action-toast{bottom:24px}
+}
+
+#diagrams-frame{display:block;width:100%;height:100%;border:0;background:transparent}
+#tab-diagrams .embed-wrap{padding-top:0;overflow:hidden}
+
+.o-chip-tip{border-color:color-mix(in srgb,#f59e0b 50%,var(--line));background:color-mix(in srgb,#f59e0b 14%,transparent);flex:none;width:auto;max-width:100%;align-self:flex-start}
+.o-onboard-doc ul{padding-left:1.2em;line-height:1.5}
+
+.dg-src{margin-left:auto;font-size:.68rem;color:var(--text-muted);font-weight:600}
+
+.o-chip-cats{display:flex;gap:6px;padding:0 0 6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.o-chip-cats::-webkit-scrollbar{display:none}
+.o-chip-cat{flex:none;border:1px solid var(--line);background:transparent;color:var(--text-muted);border-radius:999px;padding:6px 12px;font:600 .72rem system-ui;cursor:pointer}
+.o-chip-cat.on{background:color-mix(in srgb,var(--accent) 22%,transparent);border-color:var(--accent);color:var(--text)}
+.o-chips-scroll{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+.o-chips-scroll::-webkit-scrollbar{display:none}
+.o-chips-scroll .o-chip{flex:none}
+.o-chips-row{padding-bottom:4px}
+
+/* Калькулятор / FlowForge в ленте агента — компактно, без чёрной пустоты */
+.o-dock-inchat{
+  flex:0 0 auto;width:100%;max-width:100%;
+  margin:8px 0 12px;border-radius:14px;
+  border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line));
+  background:color-mix(in srgb,var(--bg-card) 92%,transparent);
+  box-shadow:0 8px 28px rgba(0,0,0,.18);
+  max-height:none;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+}
+.o-dock-inchat .o-dock-h{flex:none}
+.o-dock-inchat .o-dock-tabs{flex:none;padding:6px 8px;border-bottom:1px solid var(--line);overflow-x:auto}
+.o-dock-inchat .o-dock-b{flex:none;min-height:0;line-height:0;background:#12151b}
+.o-dock-inchat .o-dock-b iframe,
+#ag-dock iframe,#ag-flow-dock iframe,#ag-calc-frame{
+  display:block;width:100%;border:0;background:#12151b;
+  /* superseded by 5.8.33 */
+}
+.o-dock-inchat.min .o-dock-b,
+.o-dock-inchat.min .o-dock-tabs{display:none}
+#ag-dock.o-dock-inchat,#ag-flow-dock.o-dock-inchat{max-height:none}
+@media (max-width:480px){
+/* superseded */
+}
+@media (min-width:900px){
+  .o-dock-inchat{max-width:min(560px,100%);margin-left:auto;margin-right:auto}
+/* superseded */
+}
+
+/* === 5.8.33: карточка CIFRA в агенте — фикс. размер, полный калькулятор === */
+#ag-dock.o-dock-inchat,
+#ag-flow-dock.o-dock-inchat{
+  max-height:none!important;
+  width:100%;
+  overflow:hidden;
+  display:flex!important;
+  flex-direction:column;
+}
+#ag-dock.o-dock-inchat:not(.min),
+#ag-flow-dock.o-dock-inchat:not(.min){
+  /* шапка+табы ~72px + iframe */
+}
+#ag-dock .o-dock-b,
+#ag-flow-dock .o-dock-b{
+  flex:0 0 auto;
+  line-height:0;
+  background:#12151b;
+}
+#ag-calc-frame,
+#ag-dock iframe,
+#ag-flow-dock iframe,
+.o-dock-inchat .o-dock-b iframe{
+  display:block!important;
+  width:100%!important;
+  border:0!important;
+  background:#12151b!important;
+  /* фиксированная «живая карточка»: экран+клавиши+nav */
+  height:420px!important;
+  min-height:420px!important;
+  max-height:420px!important;
+}
+@media (max-width:400px){
+  #ag-calc-frame,
+  #ag-dock iframe,
+  #ag-flow-dock iframe,
+  .o-dock-inchat .o-dock-b iframe{
+    height:380px!important;
+    min-height:380px!important;
+    max-height:380px!important;
+  }
+}
+@media (min-width:900px){
+  #ag-calc-frame,
+  #ag-dock iframe,
+  .o-dock-inchat .o-dock-b iframe{
+    height:440px!important;
+    min-height:440px!important;
+    max-height:440px!important;
+  }
+}
+#ag-dock.o-dock-inchat.min iframe,
+#ag-dock.o-dock-inchat.min .o-dock-b{display:none!important}

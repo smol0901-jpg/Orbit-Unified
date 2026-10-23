@@ -14,6 +14,90 @@
 <link rel="icon" href="icons/icon-nova.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/nova-192.png">
 <link rel="stylesheet" href="css/style.css">
+<style id="embed-css">
+/* Карточка в iframe агента: всё умещается в height родителя */
+html.cifra-embed,html.cifra-embed body{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  margin:0!important;overflow:hidden!important;
+}
+html.cifra-embed .shell{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  width:100%!important;gap:0!important;
+}
+html.cifra-embed .app{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  max-width:100%!important;width:100%!important;
+  padding:4px 6px 4px!important;
+  display:flex!important;flex-direction:column!important;overflow:hidden!important;
+  box-shadow:none!important;border:0!important;border-radius:0!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html.cifra-embed .top{
+  flex:0 0 auto!important;padding:2px 4px!important;min-height:34px!important;gap:4px!important;
+}
+html.cifra-embed .top .logo b{font-size:.82rem!important}
+html.cifra-embed .top .logo svg{width:20px!important;height:20px!important}
+html.cifra-embed .top .ib{width:28px!important;height:28px!important;border-radius:8px!important}
+html.cifra-embed .top .ib svg{width:16px!important;height:16px!important}
+html.cifra-embed .view{
+  flex:1 1 auto!important;min-height:0!important;overflow:hidden!important;
+  display:flex!important;flex-direction:column!important;
+}
+html.cifra-embed #calc.view{padding:0!important;gap:4px!important}
+html.cifra-embed .screen{
+  flex:0 0 auto!important;min-height:52px!important;max-height:72px!important;
+  padding:4px 6px!important;justify-content:flex-end!important;
+}
+html.cifra-embed #res{font-size:1.55rem!important;line-height:1.1!important}
+html.cifra-embed #expr{font-size:.7rem!important;min-height:1em!important}
+html.cifra-embed .stl button{width:26px!important;height:26px!important}
+html.cifra-embed .pad{
+  flex:1 1 auto!important;min-height:0!important;margin-top:2px!important;
+  gap:5px!important;padding:0!important;
+  display:grid!important;grid-template-columns:repeat(4,1fr)!important;
+  align-content:stretch!important;
+}
+html.cifra-embed .pad.mem{
+  flex:0 0 auto!important;grid-template-columns:repeat(6,1fr)!important;
+  gap:4px!important;min-height:0!important;
+}
+html.cifra-embed .pad.mem button{
+  height:32px!important;min-height:32px!important;max-height:36px!important;
+  font-size:.72rem!important;
+}
+html.cifra-embed #pad.pad{
+  grid-template-rows:repeat(5,minmax(0,1fr))!important;
+}
+html.cifra-embed #sciPad.pad{flex:0 0 auto!important;max-height:28%!important;overflow:auto!important}
+html.cifra-embed .pad button{
+  height:auto!important;min-height:0!important;
+  font-size:clamp(.85rem,2.8vh,1.25rem)!important;
+  border-radius:10px!important;
+  box-shadow:none!important;
+}
+html.cifra-embed .pad .op{font-size:clamp(1rem,3vh,1.4rem)!important}
+html.cifra-embed .pad .eq{font-size:clamp(1.1rem,3.2vh,1.5rem)!important}
+html.cifra-embed nav.nav{
+  flex:0 0 auto!important;padding:2px 0 0!important;gap:2px!important;
+  overflow-x:auto!important;scrollbar-width:none;min-height:0!important;
+}
+html.cifra-embed nav.nav::-webkit-scrollbar{display:none}
+html.cifra-embed nav.nav button{
+  font-size:.6rem!important;padding:4px 5px!important;min-width:0!important;
+  gap:2px!important;
+}
+html.cifra-embed nav.nav button i,html.cifra-embed nav.nav svg{width:14px!important;height:14px!important}
+html.cifra-embed #drawer,html.cifra-embed dialog{max-height:85%!important}
+</style>
+<script>
+(function(){
+  try{
+    if(/[?&]embed=1(?:&|$)/.test(location.search)||window.parent!==window){
+      document.documentElement.classList.add('cifra-embed');
+    }
+  }catch(e){}
+})();
+</script>
 </head>
 <body>
 <div class="shell">
