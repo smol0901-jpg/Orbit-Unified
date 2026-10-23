@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>CIFRA Pro — калькулятор, конвертер, финансы, графики, доска</title>
+<meta name="description" content="CIFRA Pro: научный калькулятор с графиками, конвертер, финансы, дата-калькулятор, математическая доска (алгебра, геометрия, тригонометрия, физика, химия). Офлайн PWA.">
+<meta name="author" content="Смолянинов Александр">
+<meta name="theme-color" content="#12151b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="CIFRA Pro">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-nova.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/nova-192.png">
+<link rel="stylesheet" href="css/style.css">
+<style id="embed-css">
+/* Карточка в iframe агента: всё умещается в height родителя */
+html.cifra-embed,html.cifra-embed body{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  margin:0!important;overflow:hidden!important;
+}
+html.cifra-embed .shell{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  width:100%!important;gap:0!important;
+}
+html.cifra-embed .app{
+  height:100%!important;max-height:100%!important;min-height:0!important;
+  max-width:100%!important;width:100%!important;
+  padding:4px 6px 4px!important;
+  display:flex!important;flex-direction:column!important;overflow:hidden!important;
+  box-shadow:none!important;border:0!important;border-radius:0!important;
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+html.cifra-embed .top{
+  flex:0 0 auto!important;padding:2px 4px!important;min-height:34px!important;gap:4px!important;
+}
+html.cifra-embed .top .logo b{font-size:.82rem!important}
+html.cifra-embed .top .logo svg{width:20px!important;height:20px!important}
+html.cifra-embed .top .ib{width:28px!important;height:28px!important;border-radius:8px!important}
+html.cifra-embed .top .ib svg{width:16px!important;height:16px!important}
+/* Только активная вкладка; [hidden] не перебивать! */
+html.cifra-embed .view[hidden],
+html.cifra-embed .tool[hidden],
+html.cifra-embed section.view[hidden]{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  height:0!important;
+  overflow:hidden!important;
+  flex:0 0 0!important;
+  min-height:0!important;
+  max-height:0!important;
+  margin:0!important;padding:0!important;border:0!important;
+}
+html.cifra-embed .view:not([hidden]){
+  flex:1 1 auto!important;min-height:0!important;overflow:hidden!important;
+  display:flex!important;flex-direction:column!important;
+}
+html.cifra-embed #calc.view:not([hidden]){padding:0!important;gap:4px!important}
+html.cifra-embed .screen{
+  flex:0 0 auto!important;min-height:52px!important;max-height:72px!important;
+  padding:4px 6px!important;justify-content:flex-end!important;
+}
+html.cifra-embed #res{font-size:1.55rem!important;line-height:1.1!important}
+html.cifra-embed #expr{font-size:.7rem!important;min-height:1em!important}
+html.cifra-embed .stl button{width:26px!important;height:26px!important}
+html.cifra-embed .pad{
+  flex:1 1 auto!important;min-height:0!important;margin-top:2px!important;
+  gap:5px!important;padding:0!important;
+  display:grid!important;grid-template-columns:repeat(4,1fr)!important;
+  align-content:stretch!important;
+}
+html.cifra-embed .pad.mem{
+  flex:0 0 auto!important;grid-template-columns:repeat(6,1fr)!important;
+  gap:4px!important;min-height:0!important;
+}
+html.cifra-embed .pad.mem button{
+  height:32px!important;min-height:32px!important;max-height:36px!important;
+  font-size:.72rem!important;
+}
+html.cifra-embed #pad.pad{
+  grid-template-rows:repeat(5,minmax(36px,1fr))!important;
+  flex:1 1 auto!important;
+  min-height:180px!important;
+}
+html.cifra-embed #calc.view:not([hidden]){
+  flex:1 1 auto!important;
+  min-height:0!important;
+}
+/* на очень низком iframe (агент) — чуть компактнее */
+@media (max-height:420px){
+  html.cifra-embed #pad.pad{min-height:140px!important;grid-template-rows:repeat(5,minmax(28px,1fr))!important}
+  html.cifra-embed .screen{min-height:44px!important;max-height:56px!important}
+  html.cifra-embed #res{font-size:1.25rem!important}
+  html.cifra-embed nav.nav button{font-size:.52rem!important;padding:3px 4px!important}
+}
+html.cifra-embed #sciPad.pad{
+  flex:0 0 auto!important;
+  max-height:none!important;
+  overflow:visible!important;
+  grid-template-columns:repeat(4,minmax(0,1fr))!important;
+  gap:5px!important;
+}
+html.cifra-embed #sciPad.pad button{
+  height:auto!important;
+  min-height:34px!important;
+  font-size:clamp(.68rem,1.8vh,.82rem)!important;
+  padding:4px 2px!important;
+  white-space:nowrap!important;
+  overflow:hidden!important;
+  text-overflow:ellipsis!important;
+}
+html.cifra-embed .pad button{
+  height:auto!important;min-height:0!important;
+  font-size:clamp(.95rem,2.8vh,1.25rem)!important;
+  border-radius:10px!important;
+  box-shadow:none!important;
+  white-space:nowrap!important;
+}
+html.cifra-embed .pad.mem button{
+  font-size:clamp(.65rem,1.6vh,.8rem)!important;
+  min-height:30px!important;
+}
+html.cifra-embed .pad .op{font-size:clamp(1rem,3vh,1.4rem)!important}
+html.cifra-embed .pad .eq{font-size:clamp(1.1rem,3.2vh,1.5rem)!important}
+html.cifra-embed nav.nav{
+  flex:0 0 auto!important;padding:2px 0 0!important;gap:2px!important;
+  overflow-x:auto!important;scrollbar-width:none;min-height:0!important;
+}
+html.cifra-embed nav.nav::-webkit-scrollbar{display:none}
+html.cifra-embed nav.nav button{
+  font-size:.6rem!important;padding:4px 5px!important;min-width:0!important;
+  gap:2px!important;
+}
+html.cifra-embed nav.nav button i,html.cifra-embed nav.nav svg{width:14px!important;height:14px!important}
+html.cifra-embed #sciPad[hidden]{display:none!important;height:0!important;max-height:0!important;overflow:hidden!important;flex:0!important;margin:0!important;padding:0!important}
+html.cifra-embed #modeBar[hidden]{display:none!important}
+html.cifra-embed #drawer,html.cifra-embed dialog{max-height:85%!important}
+
+html.cifra-embed .mode-bar{margin:2px 0!important;gap:4px!important}
+html.cifra-embed .mode-btn{min-height:32px!important;font-size:.75rem!important;padding:4px 8px!important;border-radius:10px!important}
+html.cifra-embed .screen{
+  flex:0 0 auto!important;min-height:56px!important;max-height:88px!important;
+  padding:4px 8px!important;justify-content:flex-end!important;
+}
+html.cifra-embed #expr{font-size:.75rem!important;min-height:1em!important}
+html.cifra-embed #res{font-size:clamp(1.35rem,4.5vh,2.1rem)!important;line-height:1.1!important;max-height:1.4em!important}
+html.cifra-embed #calc #sciPad{
+  max-height:min(26vh,160px)!important;overflow-y:auto!important;
+}
+html.cifra-embed #calc #sciPad button{
+  min-height:28px!important;max-height:32px!important;
+  font-size:clamp(.62rem,1.5vh,.76rem)!important;padding:2px 1px!important;
+}
+html.cifra-embed #calc #pad.pad{
+  flex:1 1 auto!important;min-height:150px!important;
+  grid-template-rows:repeat(5,minmax(0,1fr))!important;
+}
+html.cifra-embed #calc #pad.pad button{height:100%!important;min-height:0!important}
+</style>
+<script>
+(function(){
+  try{
+    if(/[?&]embed=1(?:&|$)/.test(location.search)||window.parent!==window){
+      document.documentElement.classList.add('cifra-embed');
+    }
+    if(/[?&](?:basic=1|mode=basic)(?:&|$)/.test(location.search)){
+      document.documentElement.classList.add('cifra-basic');
+    }
+  }catch(e){}
+})();
+</script>
+</head>
+<body>
+<div class="shell">
+<main class="app">
+  <header class="top">
+    <span class="logo"><svg viewBox="0 0 512 512" aria-hidden="true"><path d="M362 167A138 138 0 1 0 362 345" fill="none" stroke="#fff" stroke-width="46" stroke-linecap="round"/><circle cx="352" cy="256" r="26"/></svg><b>CIFRA<i>Pro</i></b></span>
+    <button id="hap" class="ib" aria-label="Вибрация"><svg viewBox="0 0 24 24"><rect x="8" y="3" width="8" height="18" rx="2"/><path d="M4 8v8M20 8v8M1.5 10.5v3M22.5 10.5v3"/></svg></button>
+    <button id="hist" class="ib" aria-label="История"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M3 12a9 9 0 1 0 3-6.7M3 4v4h4"/></svg></button>
+    <button id="set" class="ib" aria-label="Настройки"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button>
+  </header>
+  <section id="calc" class="view">
+    <div class="screen"><div class="stl"><span id="mb" hidden></span><i></i><button id="copy" aria-label="Копировать"><svg viewBox="0 0 24 24"><path d="M9 9h10v10H9zM5 15V5h10"/></svg></button><button id="paste" aria-label="Вставить"><svg viewBox="0 0 24 24"><path d="M8 4h8v3H8zM6 6H5v14h14V6h-1"/></svg></button><button id="share" aria-label="Поделиться"><svg viewBox="0 0 24 24"><path d="M12 15V3M8 7l4-4 4 4M5 12v8h14v-8"/></svg></button></div><div id="expr"></div><div id="res" title="Нажмите, чтобы скопировать">0</div></div>
+    <div id="modeBar" class="mode-bar" role="group" aria-label="Режим калькулятора">
+      <button type="button" data-mode="basic" class="mode-btn on">Обычный</button>
+      <button type="button" data-mode="sci" class="mode-btn">Математический</button>
+    </div>
+    <div id="memp" class="pad mem"></div>
+    <div id="sciPad" class="pad sci" hidden></div>
+    <div id="pad" class="pad"></div>
+  </section>
+  <section id="conv" class="view tool" hidden></section>
+  <section id="fin" class="view tool" hidden></section>
+  <section id="dates" class="view tool" hidden></section>
+  <section id="graph" class="view tool" hidden></section>
+  <section id="board" class="view tool" hidden></section>
+  <section id="acc" class="view tool" hidden></section>
+  <nav class="nav">
+    <button data-t="calc" class="on"><i><svg viewBox="0 0 24 24"><rect x="5" y="3" width="14" height="18" rx="3"/><path d="M9 7h6M9 12h.01M12 12h.01M15 12h.01M9 16h.01M12 16h.01M15 16h.01"/></svg></i>Счёт</button>
+    <button data-t="conv"><i><svg viewBox="0 0 24 24"><path d="M7 4L3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7"/></svg></i>Конвертер</button>
+    <button data-t="fin"><i><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.2c-.6-.8-1.5-1.2-2.6-1.2-1.4 0-2.4.7-2.4 1.8 0 2.5 5 1.2 5 3.7 0 1.1-1 1.9-2.5 1.9-1.1 0-2-.4-2.7-1.2M12 6.5V8m0 8v1.5"/></svg></i>Финансы</button>
+    <button data-t="dates"><i><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></i>Даты</button>
+    <button data-t="graph"><i><svg viewBox="0 0 24 24"><path d="M3 3v18h18M7 15c3-9 7-9 10-3"/></svg></i>График</button>
+    <button data-t="board"><i><svg viewBox="0 0 24 24"><path d="M4 4h16v12H4zM8 20h8M12 16v4"/><path d="M8 8h3M8 11h5"/></svg></i>Доска</button>
+    <button data-t="acc"><i><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM8 8h8M8 12h8M8 16h5"/></svg></i>Учёт</button>
+  </nav>
+  <div id="toast" role="status"></div>
+</main>
+<aside id="drawer" hidden>
+  <div class="dh"><b>История</b><span><button id="hx">Excel</button><button id="hs">Поделиться</button><button id="hc">Очистить</button><button id="close">Закрыть</button></span></div>
+  <ul id="list"></ul>
+</aside>
+</div>
+<dialog id="dlg">
+  <div class="dh"><b>Настройки</b><button id="dx">Готово</button></div>
+  <div id="sb"></div>
+  <div class="acts"><button id="install" hidden>Установить приложение</button><button id="abt">Автор и обратная связь</button><button id="xl">История в Excel</button><button id="csv">История в CSV</button><button id="wipe">Очистить историю</button><button id="reset">Сбросить настройки</button></div>
+</dialog>
+<dialog id="about">
+  <div class="dh"><b>О программе</b><button id="ax">Закрыть</button></div>
+  <div id="ab"></div>
+</dialog>
+<noscript>Для работы нужен JavaScript.</noscript>
+<script src="js/engine.js"></script>
+<script src="js/graph.js"></script>
+<script src="js/db.js"></script>
+<script src="js/tools.js"></script>
+<script src="js/app.js"></script>
+<script src="js/voice.js"></script>
+
+<script>
+window.addEventListener('message', function(ev){
+  var d = ev.data;
+  if (!d || d.type !== 'orbit-calc') return;
+  if (d.expr) {
+    try { window.dispatchEvent(new CustomEvent('cifra-insert', { detail: String(d.expr) })); } catch(e){}
+  }
+});
+</script>
+</body>
+</html>
