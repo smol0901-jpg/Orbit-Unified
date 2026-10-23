@@ -1,6 +1,6 @@
 {
-  "version": "5.8.39",
+  "version": "5.8.40",
   "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.39: CIFRA mode bar Обычный/Математический, display + pad proportions"
+  "notes": "5.8.40: basic pad everyday ops only; sci hidden in basic; agent dock basic-only"
 }

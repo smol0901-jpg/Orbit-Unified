@@ -67,7 +67,7 @@
       f = document.createElement('iframe'); f.id = 'ag-calc-frame'; f.title = 'CIFRA Pro в чате';
       f.setAttribute('loading', 'eager'); f.allow = 'clipboard-read; clipboard-write; microphone';
       // высота только через CSS (#ag-calc-frame) — без inline, чтобы не драться с !important
-      f.src = 'cifra/index.html?embed=1';
+      f.src = 'cifra/index.html?embed=1&basic=1';
       d.querySelector('.o-dock-b').appendChild(f);
       f.addEventListener('load', function () {
         try { f.contentWindow.document.documentElement.classList.add('cifra-embed'); } catch (e) {}
