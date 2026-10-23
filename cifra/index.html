@@ -39,11 +39,25 @@ html.cifra-embed .top .logo b{font-size:.82rem!important}
 html.cifra-embed .top .logo svg{width:20px!important;height:20px!important}
 html.cifra-embed .top .ib{width:28px!important;height:28px!important;border-radius:8px!important}
 html.cifra-embed .top .ib svg{width:16px!important;height:16px!important}
-html.cifra-embed .view{
+/* Только активная вкладка; [hidden] не перебивать! */
+html.cifra-embed .view[hidden],
+html.cifra-embed .tool[hidden],
+html.cifra-embed section.view[hidden]{
+  display:none!important;
+  visibility:hidden!important;
+  pointer-events:none!important;
+  height:0!important;
+  overflow:hidden!important;
+  flex:0 0 0!important;
+  min-height:0!important;
+  max-height:0!important;
+  margin:0!important;padding:0!important;border:0!important;
+}
+html.cifra-embed .view:not([hidden]){
   flex:1 1 auto!important;min-height:0!important;overflow:hidden!important;
   display:flex!important;flex-direction:column!important;
 }
-html.cifra-embed #calc.view{padding:0!important;gap:4px!important}
+html.cifra-embed #calc.view:not([hidden]){padding:0!important;gap:4px!important}
 html.cifra-embed .screen{
   flex:0 0 auto!important;min-height:52px!important;max-height:72px!important;
   padding:4px 6px!important;justify-content:flex-end!important;
@@ -70,7 +84,7 @@ html.cifra-embed #pad.pad{
   flex:1 1 auto!important;
   min-height:180px!important;
 }
-html.cifra-embed #calc.view{
+html.cifra-embed #calc.view:not([hidden]){
   flex:1 1 auto!important;
   min-height:0!important;
 }

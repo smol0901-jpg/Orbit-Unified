@@ -499,3 +499,9 @@ html.cifra-embed .app{max-width:100%!important;width:100%!important}
   grid-template-rows:repeat(5,minmax(40px,1fr));
 }
 html.cifra-embed #calc #pad.pad{min-height:180px}
+
+/* 5.8.37: вкладки — только одна видима (embed не должен перебивать [hidden]) */
+.view[hidden],.tool[hidden],section.view[hidden]{display:none!important}
+html.cifra-embed .view[hidden],
+html.cifra-embed .tool[hidden],
+html.cifra-embed section[hidden]{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;flex:none!important}
