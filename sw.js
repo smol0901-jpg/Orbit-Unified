@@ -1,7 +1,7 @@
 /* Контур · Service Worker — единственный на весь проект.
    CIFRA и FlowForge работают под этим же воркером.
    • офлайн-кэш; обновления с подтверждением; share_target. */
-const V = 'contour-v5.8.41';
+const V = 'contour-v5.8.42';
 const SHARE = 'contour-share';
 const CORE = [
   './', './index.html', './manifest.json', './version.json',

@@ -1,6 +1,6 @@
 {
-  "version": "5.8.41",
+  "version": "5.8.42",
   "build": 20261023,
   "name": "Контур",
-  "notes": "5.8.41: agent compact basic-only calc; equal bottom row keys; hide mode bar in agent"
+  "notes": "5.8.42: agent dock = calculator only; other CIFRA tools via chat commands"
 }

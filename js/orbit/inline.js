@@ -23,7 +23,7 @@
   const money = x => (Math.round(x * 100) / 100).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00a0/g, ' ') + ' ₽';
 
   /* ═══════════ 1. ПАНЕЛЬ КАЛЬКУЛЯТОРА В ЧАТЕ ═══════════ */
-  const DOCK_TABS = [['calc', 'Калькулятор'], ['conv', 'Конвертер'], ['fin', 'Финансы'], ['dates', 'Даты'], ['graph', 'График'], ['board', 'Доска'], ['acc', 'Учёт']];
+  const DOCK_TABS = [['calc', 'Калькулятор']];
   const dock = I.dock = { open: false, min: false, tab: 'calc' };
 
   function dockEl() {
@@ -83,10 +83,21 @@
     d.hidden = !(dock.open && chat);
     d.classList.toggle('min', !!dock.min);
     const tabs = d.querySelector('#ag-dock-tabs');
-    if (tabs && !tabs.dataset.ready) {
-      tabs.innerHTML = DOCK_TABS.map(([id, lab]) => `<button type="button" class="o-chip" data-dtab="${id}">${lab}</button>`).join('');
-      tabs.dataset.ready = '1';
+    if (tabs) {
+      // только калькулятор — строку вкладок прячем
+      if (DOCK_TABS.length <= 1) {
+        tabs.innerHTML = '';
+        tabs.hidden = true;
+        tabs.style.display = 'none';
+        tabs.dataset.ready = '1';
+      } else if (!tabs.dataset.ready) {
+        tabs.innerHTML = DOCK_TABS.map(([id, lab]) => `<button type="button" class="o-chip" data-dtab="${id}">${lab}</button>`).join('');
+        tabs.dataset.ready = '1';
+        tabs.hidden = false;
+        tabs.style.display = '';
+      }
     }
+    dock.tab = 'calc';
     d.querySelectorAll('[data-dtab]').forEach(b => b.classList.toggle('on', b.dataset.dtab === dock.tab));
     const m = d.querySelector('[data-dact="min"]'); if (m) m.textContent = dock.min ? '▴' : '▾';
     if (dock.open && chat) {
@@ -106,7 +117,7 @@
     if (d) { d.style.display = ''; d.removeAttribute('hidden'); d.classList.remove('min'); }
     const f = frameEl();
     dock.open = true; dock.min = false;
-    dock.tab = o.tab || 'calc';
+    dock.tab = 'calc'; /* агент: только калькулятор */
     // позиция: между msgs и chips (не внутри msgs)
     try {
       const host = document.querySelector('#agent-root .o-agent') || document.getElementById('agent-root');
