@@ -165,6 +165,9 @@ html.cifra-embed #calc #pad.pad button{height:100%!important;min-height:0!import
     if(/[?&]embed=1(?:&|$)/.test(location.search)||window.parent!==window){
       document.documentElement.classList.add('cifra-embed');
     }
+    if(/[?&](?:basic=1|mode=basic)(?:&|$)/.test(location.search)){
+      document.documentElement.classList.add('cifra-basic');
+    }
   }catch(e){}
 })();
 </script>

@@ -48,8 +48,8 @@ button{border:0;cursor:pointer;touch-action:manipulation;background:transparent}
 .pad button:active{transform:scale(.94)}
 .pad .fn{background:var(--fn);font-size:1.18rem}
 .pad .op{background:var(--op);color:var(--opfg);font-size:1.65rem}
-.pad .eq{background:linear-gradient(145deg,var(--eq),color-mix(in srgb,var(--eq) 70%,#000));color:#fff;font-size:1.85rem;box-shadow:0 4px 16px color-mix(in srgb,var(--eq) 35%,transparent)}
-.pad .z{grid-column:span 2}
+.pad .eq{background:linear-gradient(145deg,var(--eq),color-mix(in srgb,var(--eq) 70%,#000));color:#fff;font-size:clamp(1.05rem,3.5vw,1.42rem);font-weight:650;box-shadow:0 4px 16px color-mix(in srgb,var(--eq) 35%,transparent)}
+.pad .z{grid-column:span 1}
 .mode-bar{
   display:flex;gap:6px;flex:0 0 auto;margin:4px 0 2px;padding:0;
 }
@@ -593,3 +593,47 @@ html.cifra-embed section[hidden]{display:none!important;visibility:hidden!import
 #modeBar[hidden]{display:none!important}
 #calc #pad.pad{grid-template-rows:repeat(6,minmax(0,1fr))}
 :root.sm #calc #pad.pad{grid-template-rows:repeat(5,minmax(0,1fr))}
+
+
+/* 5.8.41: агент — компактный обычный калькулятор (как вкладка, только меньше) */
+html.cifra-basic #modeBar,
+html.cifra-embed.cifra-basic #modeBar{display:none!important}
+html.cifra-basic #memp [data-k=sci],
+html.cifra-embed.cifra-basic #memp [data-k=sci]{display:none!important}
+html.cifra-basic #sciPad,
+html.cifra-embed.cifra-basic #sciPad{display:none!important;height:0!important}
+html.cifra-embed.cifra-basic .app{padding:4px 6px!important}
+html.cifra-embed.cifra-basic .top{min-height:28px!important;padding:0 2px!important}
+html.cifra-embed.cifra-basic .screen{
+  min-height:48px!important;max-height:64px!important;padding:4px 8px!important;
+}
+html.cifra-embed.cifra-basic #res{font-size:clamp(1.25rem,4vh,1.85rem)!important}
+html.cifra-embed.cifra-basic #expr{font-size:.7rem!important}
+html.cifra-embed.cifra-basic #memp button{height:28px!important;min-height:28px!important;font-size:.7rem!important}
+html.cifra-embed.cifra-basic #calc #pad.pad{
+  flex:1 1 auto!important;min-height:0!important;
+  grid-template-rows:repeat(6,minmax(0,1fr))!important;gap:4px!important;
+}
+html.cifra-embed.cifra-basic #calc #pad.pad button{
+  height:100%!important;min-height:0!important;
+  font-size:clamp(.85rem,2.2vh,1.1rem)!important;
+  border-radius:10px!important;
+}
+html.cifra-embed.cifra-basic nav.nav{padding:2px 0 0!important}
+html.cifra-embed.cifra-basic nav.nav button{font-size:.55rem!important;padding:3px 2px!important}
+/* все кнопки нижнего ряда одной ширины */
+#calc #pad.pad button{min-width:0}
+
+
+/* 5.8.42: в агенте скрыть нижнее меню CIFRA полностью */
+html.cifra-basic nav.nav,
+html.cifra-embed.cifra-basic nav.nav{
+  display:none!important;
+  height:0!important;
+  max-height:0!important;
+  overflow:hidden!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+  visibility:hidden!important;
+}

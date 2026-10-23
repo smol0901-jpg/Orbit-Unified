@@ -890,9 +890,9 @@ body.embed-tab #tab-diagrams.active {
   width:100%!important;
   border:0!important;
   background:#12151b!important;
-  height:min(52vh,420px)!important;
-  min-height:320px!important;
-  max-height:480px!important;
+  height:min(58vh,460px)!important;
+  min-height:360px!important;
+  max-height:520px!important;
 }
 @media (max-width:400px){
   #ag-calc-frame,

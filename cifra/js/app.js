@@ -20,8 +20,9 @@ const MAIN_BASIC=[
   ['7'],['8'],['9'],['×','×','op'],
   ['4'],['5'],['6'],['−','−','op'],
   ['1'],['2'],['3'],['+','+','op'],
-  ['0','0','z'],[',','.'],['=','=','eq']
+  ['0'],[',','.'],['+','+','op'],['=','=','eq']
 ];
+/* нижний ряд: 0 , + = — все одной ширины (без span у 0) */
 const MAIN_SCI=[
   ['AC','c','fn'],['⌫','bs','fn'],['(','(','fn'],[')',')','fn'],
   ['7'],['8'],['9'],['÷','÷','op'],
@@ -32,6 +33,8 @@ const MAIN_SCI=[
 const SCI=[['sin','sin('],['cos','cos('],['tan','tan('],['π','π'],['ln','ln('],['log','log('],['√','√('],['e','e'],['x²','^2'],['xʸ','^'],['n!','!'],['1/x','1÷('],['abs','abs('],['10ˣ','10^('],['RAD','deg'],['sin⁻¹','asin('],['cos⁻¹','acos('],['tan⁻¹','atan('],['x','x'],['τ','τ'],['exp','exp('],['∛','cbrt('],['sec','sec('],['csc','csc('],['cot','cot('],['nCr','ncr('],['nPr','npr(']];
 const MEM=[['MC'],['MR'],['M+'],['M−'],['MS'],['ƒx','sci']];
 const FORCE_BASIC=/[?&](?:basic=1|mode=basic)(?:&|$)/.test(location.search);
+if(FORCE_BASIC){try{document.documentElement.classList.add('cifra-basic')}catch(e){}}
+
 const SET=[['Оформление',[['theme','Тема','seg',[['auto','Авто'],['light','День'],['dark','Ночь'],['amoled','AMOLED']]],['accent','Цвет акцента','col',['#7c5cff','#22d3ee','#0e9f6e','#e0662b','#c026d3','#e11d48','#0f7fd0']],['bg','Фон','seg',[['nova','CIFRA'],['none','Нет'],['aurora','Аврора'],['dusk','Закат'],['forest','Лес'],['mono','Графит']]]]],
 ['Отклик',[['hap','Вибрация','seg',[[0,'Выкл'],[1,'Лёгкая'],[2,'Средняя'],[3,'Сильная']]],['sound','Звук нажатий','seg',[[0,'Выкл'],[.05,'Тихий'],[.14,'Громкий']]],['anim','Анимации','sw',['off','on']]]],
 ['Клавиатура',[['size','Размер кнопок','seg',[[.88,'Компактные'],[1,'Обычные'],[1.15,'Крупные']]],['shape','Форма кнопок','seg',[['round','Мягкие'],['pill','Овал'],['square','Строгие']]]]],
@@ -114,7 +117,8 @@ mk(MEM,$('#memp'));mk(SCI,$('#sciPad'));rebuildPad();
   if(FORCE_BASIC){
     cfg.sci=false;
     try{save()}catch(e){}
-    const bar=$('#modeBar'); if(bar) bar.hidden=true;
+    document.documentElement.classList.add('cifra-basic');
+    const bar=$('#modeBar'); if(bar){ bar.hidden=true; bar.style.display='none'; }
     const fx=$('#memp [data-k=sci]'); if(fx){ fx.hidden=true; fx.style.display='none'; }
     rebuildPad();
   }
@@ -294,8 +298,8 @@ window.addEventListener('cifra-voice',e=>{const d=e.detail||{};if(tab!=='calc')g
   if(d.expr){const x=d.expr;if(/^[+−×÷^%]/.test(x)&&expr)expr+=x;else expr=/^[+×÷^%]/.test(x)?'0'+x:x;done=false;render()}
   if(d.eq)equals()});
 /* управление из чата Контура: {type:'orbit-calc', tab:'conv|fin|dates|graph|board|acc|calc', expr:'2+2'} */
-window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='orbit-calc')return;if(d.tab&&['calc','conv','fin','dates','graph','board','acc'].includes(d.tab))go(d.tab);if(d.expr){expr=String(d.expr);done=false;go('calc');render();}})
+window.addEventListener('message',e=>{const d=e.data;if(!d||d.type!=='orbit-calc')return;if(FORCE_BASIC){if(d.expr){expr=String(d.expr);done=false;go('calc');render()}return;}if(d.tab&&['calc','conv','fin','dates','graph','board','acc'].includes(d.tab))go(d.tab);if(d.expr){expr=String(d.expr);done=false;go('calc');render();}})
 apply();render();
-const q=new URLSearchParams(location.search).get('tab');if(['conv','fin','dates','graph','board','acc'].includes(q))go(q);
+const q=new URLSearchParams(location.search).get('tab');if(!FORCE_BASIC&&['conv','fin','dates','graph','board','acc'].includes(q))go(q);if(FORCE_BASIC)go('calc');
 DB.prune(ttl()).catch(()=>{});
 })();
